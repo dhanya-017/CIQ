@@ -205,7 +205,7 @@ METHODS: dict[str, dict] = {
         steps=["Both sides use the same market (lung-cancer systemic therapy claims), period and definitions.",
                "Brands: patients, share, volume, prescribers, share change, line share, combination use, 180-day "
                "persistency and patient mix for each brand. HCP / patient / time cohorts: the claims are filtered to "
-               "each side, then the focus brand's share, volume, new patients and prescribers are measured on it.",
+               "each side, then the brand's share, volume, new patients and prescribers are measured on it.",
                "Difference = B minus A: percentage points for shares, absolute and relative change for counts.",
                "Where: brands - each brand's share of HCP volume by HCP decile (deciled on total lung volume) and "
                "payer mix; cohorts - treatment mix (share of each side's patients on each product); time - HCP "

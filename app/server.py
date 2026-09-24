@@ -17,6 +17,7 @@ from starlette.concurrency import run_in_threadpool
 
 from app import settings, store
 from app.agent import Agent, add_panel_result, rewind_last_exchange
+from ciq.tools import command_center as cc
 from ciq.tools import compare
 from ciq import methodology
 from ciq import config as ciq_config
@@ -92,7 +93,7 @@ class ChatRequest(BaseModel):
 @app.get("/api/meta")
 async def meta():
     products = await run_in_threadpool(
-        lambda: query("select product, drug_class, patients from fn_product_catalog(p_therapy_group := 'LUNG_SYSTEMIC')"))
+        lambda: query("select product, molecules, drug_class, patients from fn_product_catalog(p_therapy_group := 'LUNG_SYSTEMIC')"))
     return {"coverage": await run_in_threadpool(coverage), "model": settings.MODEL_LABEL,
             "user": {"name": settings.USER_NAME, "email": settings.USER_EMAIL, "role": settings.USER_ROLE},
             "indication": ciq_config.INDICATION_NAME, "default_product": ciq_config.DEFAULT_PRODUCT,
@@ -157,6 +158,14 @@ async def chat(req: ChatRequest):
                              headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
 
+@app.get("/api/command-center")
+async def command_center(product: str | None = None, window: int = 3):
+    try:
+        return await run_in_threadpool(cc.build, product, max(1, min(window, 3)))
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
 @app.get("/api/compare/options")
 async def compare_options(product: str | None = None):
     def build():
@@ -198,7 +207,7 @@ async def run_compare(req: CompareRequest):
     call_id = f"compare_{uuid.uuid4().hex[:10]}"
     result["call_id"] = call_id
     focus = res.params.get("product") or res.params.get("a") or req.product
-    text = f"Compare {label}" + (f" (focus brand {focus})" if req.kind in ("hcp", "time", "patient") else "")
+    text = f"Compare {label}" + (f" (brand {focus})" if req.kind in ("hcp", "time", "patient") else "")
     add_panel_result(conv, text, focus, result, res.to_llm_text(), "compare_segments" if req.kind != "multi"
                      else "compare_products", req.model_dump(exclude={"conversation_id"}))
     await run_in_threadpool(store.save, conv)

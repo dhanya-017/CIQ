@@ -157,17 +157,20 @@ def _pay_group(t: str | None) -> str:
         else "Other / unknown"
 
 
-def _diverging(df: pd.DataFrame, cat: str, val: str, title: str, subtitle: str, a_label: str, b_label: str) -> dict:
-    """Horizontal bars of B - A; bars point to the side that is higher, coloured by that side."""
+def _diverging(df: pd.DataFrame, cat: str, val: str, title: str, subtitle: str, a_label: str, b_label: str,
+               names: tuple[str, str] | None = None) -> dict:
+    """Horizontal bars of B - A; bars point to the side that is higher, coloured by that side.
+    names: legend text for (negative, positive) bars; default 'Higher in A' / 'Higher in B'."""
     d = df.copy()
-    d["_side"] = np.where(d[val] >= 0, f"Higher in {b_label}", f"Higher in {a_label}")
+    neg, posl = names or (f"Higher in {a_label}", f"Higher in {b_label}")
+    d["_side"] = np.where(d[val] >= 0, posl, neg)
     spec = charts._base(d, title, subtitle)
     spec["height"] = {"step": 24}
     enc = {"y": {"field": cat, "type": "nominal", "title": None, "sort": {"field": val, "order": "descending"},
                  "axis": {"labelLimit": 220}},
            "x": {"field": val, "type": "quantitative", "title": f"{b_label} minus {a_label} (pp)"},
            "color": {"field": "_side", "type": "nominal", "title": None,
-                     "scale": {"domain": [f"Higher in {a_label}", f"Higher in {b_label}"], "range": [A_COLOR, B_COLOR]}},
+                     "scale": {"domain": [neg, posl], "range": [A_COLOR, B_COLOR]}},
            "tooltip": [{"field": cat, "type": "nominal"}, {"field": val, "type": "quantitative", "format": "+.1f",
                                                            "title": "difference (pp)"}]}
     spec["layer"] = [{"mark": {"type": "bar"}, "encoding": enc},

@@ -87,11 +87,12 @@
       <div class="topbar-title" id="convTitle">New analysis</div>
       <div class="topbar-right">
         <div class="context" role="group" aria-label="Analysis context">
-          <label class="brand-select">
-            <span>Focus brand</span>
-            <select id="productSelect"></select>
-          </label>
-          <button class="btn-compare" id="btnCompare" type="button" title="Compare the focus brand with competitors side by side">
+          <div class="brand-select">
+            <span>Brand</span>
+            <div id="brandPickerSlot"></div>
+            <select id="productSelect" hidden aria-hidden="true" tabindex="-1"></select>
+          </div>
+          <button class="btn-compare" id="btnCompare" type="button" title="Compare the brand with competitors, cohorts or time periods">
             <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M9 4v16M15 4v16M4 8h5M4 16h5M15 12h5" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/></svg>
             Compare
           </button>
@@ -131,14 +132,11 @@
 
     <section class="thread" id="thread">
       <div class="welcome" id="welcome">
-        <div class="hero">
-          <h1>What would you like to know about <span class="accent" id="heroBrand">your brand</span>?</h1>
-          <p>Ask about the market, patients, lines of therapy, diagnoses, adherence or prescribers.
-             CIQ picks the right analyses, runs them on claims data and charts the answer.</p>
-        </div>
-        <div class="kpis" id="kpis"></div>
-        <div class="trend-card" id="trendCard"></div>
-        <div class="suggest" id="suggest"></div>
+        <div class="cc" id="cc" aria-live="polite"></div>
+        <section class="ask-ciq">
+          <h2>Or ask CIQ about <span class="accent" id="heroBrand">your brand</span></h2>
+          <div class="suggest" id="suggest"></div>
+        </section>
       </div>
       <div class="messages" id="messages"></div>
     </section>

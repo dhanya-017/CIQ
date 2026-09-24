@@ -42,6 +42,12 @@ const ICONS = {
   info: "M12 11v5M12 7.5v.5M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z",
 };
 
+let topPicker = null;   // header brand picker (mirrors the hidden #productSelect)
+function setProductUI(v) {
+  $("#productSelect").value = v;
+  topPicker?.set(v);
+}
+
 const state = { meta: null, product: null, convId: null, busy: false, controller: null, history: [], ask: null };
 
 // ---------------------------------------------------------------- init
@@ -60,6 +66,11 @@ async function init() {
     }
     if (!meta.products.some((p) => p.product === state.product)) state.product = meta.default_product;
     sel.value = state.product;
+    topPicker = brandPicker(state.product, (v) => {
+      sel.value = v;
+      sel.dispatchEvent(new Event("change"));
+    }, { variant: "dark", label: "Brand" });
+    $("#brandPickerSlot").replaceChildren(topPicker.node);
     const c = meta.coverage;
     $("#footModel").textContent = `${meta.model} · Bedrock`;
     setUser(meta.user);
@@ -164,10 +175,6 @@ async function renderWelcome() {
   const p = state.product || "your brand";
   $("#heroBrand").textContent = p;
   $("#input").placeholder = `Ask a question, e.g. “What is the ${p} patient share in each line?”`;
-  const kpis = $("#kpis");
-  kpis.replaceChildren(...Array.from({ length: 5 }, () => {
-    const k = el("div", "kpi skeleton"); k.append(el("div", "k-val"), el("div", "k-lab", " ")); return k;
-  }));
   const sg = $("#suggest");
   sg.replaceChildren();
   for (const g of (state.meta?.suggestions || [])) {
@@ -182,22 +189,424 @@ async function renderWelcome() {
     }
     sg.appendChild(box);
   }
-  if (!state.product) return;
-  try {
-    const ov = await (await fetch(`/api/overview?product=${encodeURIComponent(state.product)}`)).json();
-    kpis.replaceChildren(...ov.kpis.map((k) => {
-      const d = el("div", "kpi");
-      d.append(el("div", "k-val", k.format === "pct" ? fmtPct(k.value) : fmtInt(k.value)), el("div", "k-lab", k.label));
-      return d;
-    }));
-    const tc = $("#trendCard");
-    tc.replaceChildren();
-    if (ov.trend_chart) {
-      const c = el("div", "chart");
-      tc.appendChild(c);
-      embed(c, ov.trend_chart, 200);
+  if (state.product) renderCommandCenter();
+}
+
+// ---------------------------------------------------------------- searchable brand picker
+// Type to filter by brand, molecule or drug class; grouped by class; arrows + Enter to pick, Esc to close.
+function brandPicker(value, onPick, { variant = "", label = "Brand", wide = false } = {}) {
+  const products = state.meta?.products || [];
+  const root = el("div", `bp ${variant}` + (wide ? " wide" : ""));
+  const btn = el("button", "bp-btn");
+  btn.type = "button";
+  btn.setAttribute("aria-haspopup", "listbox");
+  btn.setAttribute("aria-expanded", "false");
+  btn.setAttribute("aria-label", `${label}: ${value}`);
+  const btnLabel = el("span", "bp-value", value);
+  const chev = el("span", "bp-chev");
+  chev.innerHTML = svgIcon("M6 9l6 6 6-6");
+  btn.append(btnLabel, chev);
+  const pop = el("div", "bp-pop");
+  pop.hidden = true;
+  const search = el("input", "bp-search");
+  search.type = "search";
+  search.placeholder = "Search brand, molecule or class";
+  search.setAttribute("aria-label", "Search brands");
+  const list = el("div", "bp-list");
+  list.setAttribute("role", "listbox");
+  pop.append(search, list);
+  root.append(btn, pop);
+  let current = value, rows = [], active = 0;
+
+  const niceClass = (c) => c.split(" ").map((w) => (/\d/.test(w) || w.length <= 4 ? w : w.toLowerCase())).join(" ");
+  const paint = () => {
+    const terms = search.value.trim().toLowerCase().split(/\s+/).filter(Boolean);
+    const hay = (p) => `${p.product} ${p.molecules || ""} ${p.drug_class}`.toLowerCase();
+    const hit = products.filter((p) => terms.every((t) => hay(p).includes(t)));
+    const groups = new Map();
+    for (const p of hit) {
+      if (!groups.has(p.drug_class)) groups.set(p.drug_class, []);
+      groups.get(p.drug_class).push(p);
     }
-  } catch (e) { /* overview is decorative; ignore */ }
+    const ordered = [...groups.entries()].sort((a, b) =>
+      b[1].reduce((s, p) => s + p.patients, 0) - a[1].reduce((s, p) => s + p.patients, 0));
+    list.replaceChildren();
+    rows = [];
+    for (const [cls, ps] of ordered) {
+      list.appendChild(el("div", "bp-group", niceClass(cls)));
+      for (const p of ps.sort((a, b) => b.patients - a.patients)) {
+        const row = el("div", "bp-row" + (p.product === current ? " selected" : ""));
+        row.setAttribute("role", "option");
+        row.setAttribute("aria-selected", String(p.product === current));
+        const txt = el("span", "bp-row-text");
+        txt.append(el("span", "bp-name", p.product));
+        if (p.molecules && p.molecules.toLowerCase() !== p.product.toLowerCase()) txt.append(el("span", "bp-mol", p.molecules));
+        row.append(el("span", "bp-check", p.product === current ? "✓" : ""), txt, el("span", "bp-pts", `${p.patients.toLocaleString()} pts`));
+        const idx = rows.length;
+        row.addEventListener("mousemove", () => { if (active !== idx) { active = idx; highlight(); } });
+        row.addEventListener("mousedown", (e) => e.preventDefault());   // keep focus in the search box
+        row.addEventListener("click", () => pick(p.product));
+        rows.push({ node: row, product: p.product });
+        list.appendChild(row);
+      }
+    }
+    if (!rows.length) list.appendChild(el("div", "bp-empty", `No brand matches “${search.value.trim()}”`));
+    active = Math.max(0, rows.findIndex((r) => r.product === current));
+    if (terms.length) active = 0;
+    highlight();
+  };
+  const highlight = () => {
+    rows.forEach((r, i) => r.node.classList.toggle("active", i === active));
+    rows[active]?.node.scrollIntoView({ block: "nearest" });
+  };
+  const open = (on) => {
+    pop.hidden = !on;
+    btn.setAttribute("aria-expanded", String(on));
+    root.classList.toggle("open", on);
+    if (on) { search.value = ""; paint(); search.focus(); }
+  };
+  const pick = (v) => {
+    open(false);
+    btn.focus();
+    if (v !== current) { current = v; btnLabel.textContent = v; btn.setAttribute("aria-label", `${label}: ${v}`); onPick(v); }
+  };
+  btn.addEventListener("click", (e) => { e.stopPropagation(); open(pop.hidden); });
+  search.addEventListener("input", paint);
+  search.addEventListener("keydown", (e) => {
+    if (e.key === "ArrowDown") { e.preventDefault(); active = Math.min(rows.length - 1, active + 1); highlight(); }
+    else if (e.key === "ArrowUp") { e.preventDefault(); active = Math.max(0, active - 1); highlight(); }
+    else if (e.key === "Enter") { e.preventDefault(); if (rows[active]) pick(rows[active].product); }
+    else if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); open(false); btn.focus(); }
+  });
+  document.addEventListener("click", (e) => { if (!pop.hidden && !root.contains(e.target)) open(false); });
+  return {
+    node: root,
+    set(v) { current = v; btnLabel.textContent = v; btn.setAttribute("aria-label", `${label}: ${v}`); },
+  };
+}
+
+// ---------------------------------------------------------------- market command center (home)
+let ccWindow = 3;
+try { ccWindow = Number(localStorage.getItem("ciq.ccWindow")) || 3; } catch (e) { /* storage blocked */ }
+let ccLens = "market";
+let ccToken = 0;
+
+async function renderCommandCenter() {
+  const root = $("#cc");
+  const token = ++ccToken;
+  root.classList.add("loading");
+  if (!root.firstChild) root.appendChild(ccSkeleton());
+  let d;
+  try {
+    const r = await fetch(`/api/command-center?product=${encodeURIComponent(state.product)}&window=${ccWindow}`);
+    d = await r.json();
+    if (!r.ok) throw new Error(d.detail || r.statusText);
+  } catch (e) {
+    root.replaceChildren(el("div", "error-box", "Could not load the Command Center: " + (e.message || e)));
+    return;
+  }
+  if (token !== ccToken) return;   // a newer render started (brand/window changed)
+  root.classList.remove("loading");
+  root.replaceChildren(ccContext(d), ccHeadline(d), ccPanels(d), ccSignals(d), ccLenses(d), ccNotes(d));
+}
+
+function ccSkeleton() {
+  const s = el("div", "cc-skel");
+  for (let i = 0; i < 3; i++) s.appendChild(el("div", "cc-skel-row"));
+  return s;
+}
+
+function ccSelect(label, options, value, onChange) {
+  const wrap = el("label", "cc-field");
+  wrap.appendChild(el("span", "cc-field-label", label));
+  const sel = el("select", "cc-select");
+  for (const o of options) {
+    const op = el("option", null, o.label);
+    op.value = o.value;
+    op.disabled = Boolean(o.disabled);
+    sel.appendChild(op);
+  }
+  sel.value = value;
+  sel.addEventListener("change", () => onChange(sel.value));
+  wrap.appendChild(sel);
+  return wrap;
+}
+
+function ccBrandField(value) {
+  const wrap = el("div", "cc-field");
+  wrap.appendChild(el("span", "cc-field-label", "Brand"));
+  wrap.appendChild(brandPicker(value, (v) => {
+    state.product = v;
+    setProductUI(v);
+    try { localStorage.setItem("ciq.product", v); } catch (e) { /* storage blocked */ }
+    renderWelcome();
+  }, { label: "Brand" }).node);
+  return wrap;
+}
+
+function ccContext(d) {
+  const c = d.context;
+  const bar = el("div", "cc-context");
+  bar.appendChild(el("span", "cc-kicker", "Market Command Center"));
+  const fields = el("div", "cc-fields");
+  fields.append(
+    ccSelect("Indication", c.indications.map((x, i) => ({ value: x, label: i ? `${x} · connect data` : x, disabled: i > 0 })), c.indication, () => {}),
+    ccBrandField(c.product),
+    ccSelect("Geography", [{ value: "US", label: c.geography }, ...["Northeast", "South", "Midwest", "West"].map((r) => ({ value: r, label: `${r} · needs geography data`, disabled: true }))], "US", () => {}),
+  );
+  const win = el("div", "cc-field");
+  win.appendChild(el("span", "cc-field-label", "Period"));
+  const seg = el("div", "cc-seg");
+  for (const w of c.windows) {
+    const b = el("button", "cc-seg-btn" + (w === c.window ? " on" : ""), w === 1 ? "Last month" : `Last ${w} months`);
+    b.type = "button";
+    b.addEventListener("click", () => {
+      ccWindow = w;
+      try { localStorage.setItem("ciq.ccWindow", String(w)); } catch (e) { /* storage blocked */ }
+      renderCommandCenter();
+    });
+    seg.appendChild(b);
+  }
+  win.appendChild(seg);
+  fields.appendChild(win);
+  bar.appendChild(fields);
+  return bar;
+}
+
+function ccHeadline(d) {
+  const c = d.context;
+  const h = el("div", "cc-headline");
+  const t = el("h1", "cc-title");
+  t.append(el("span", null, "NSCLC"), el("i", null, "·"), el("span", "accent", c.product), el("i", null, "·"),
+    el("span", null, "US"), el("i", null, "·"), el("span", null, c.current.label));
+  h.append(t, el("p", "cc-sub", `Compared with ${c.prior.label}, the prior window of equal length. Every number and signal below is observed in IQVIA claims.`));
+  return h;
+}
+
+function ccTile(k) {
+  const t = el("div", "cc-tile" + (k.lead ? " lead" : "") + (k.unavailable ? " off" : ""));
+  const val = k.unavailable ? "—" : k.format === "pct" ? fmtPct(k.value) : fmtInt(k.value);
+  t.append(el("span", "cc-tile-val", val), el("span", "cc-tile-lab", k.label));
+  if (k.delta) {
+    const v = k.delta.value;
+    // market growth is partly data coverage, so it is shown neutrally rather than as good/bad
+    const tone = k.delta.coverage || v == null ? "" : v > 0.0005 ? " up" : v < -0.0005 ? " down" : "";
+    const pill = el("span", "cc-delta" + tone, `${k.delta.fmt} vs prior`);
+    if (k.delta.coverage) pill.title = "Includes claims-capture ramp-up early in the data window";
+    t.appendChild(pill);
+  }
+  if (k.note) t.appendChild(el("span", "cc-tile-note", k.note));
+  if (k.unavailable) {
+    const link = el("button", "cc-tile-link", k.unavailable);
+    link.type = "button";
+    link.addEventListener("click", () => openConnect("custom"));
+    t.appendChild(link);
+  }
+  return t;
+}
+
+function ccPanels(d) {
+  const row = el("div", "cc-panels");
+  const panel = (title, q, tiles, cls, note) => {
+    const p = el("section", "cc-panel " + cls);
+    const h = el("header");
+    h.append(el("h2", null, title), el("span", null, q));
+    const g = el("div", "cc-tiles");
+    for (const k of tiles) g.appendChild(ccTile(k));
+    p.append(h, g);
+    if (note) p.appendChild(el("p", "cc-panel-note", note));
+    return p;
+  };
+  row.append(panel("The market", "How big is it?", d.market, "cc-market", d.market_note),
+    panel(`${d.context.product} performance`, "How is the brand doing?", d.brand, "cc-brand"));
+  return row;
+}
+
+const SIGNAL_ICONS = { up: "M7 17L17 7M9 7h8v8", down: "M7 7l10 10M17 9v8H9", flat: "M5 12h14",
+  opportunity: "M12 3v4M12 17v4M3 12h4M17 12h4M12 16a4 4 0 1 0 0-8 4 4 0 0 0 0 8z", watch: "M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12zM12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" };
+
+function ccSignals(d) {
+  const sec = el("section", "cc-signals");
+  const h = el("header");
+  h.append(el("h2", null, "What matters now"), el("span", "cc-evidence", "Observed in claims · no model inference"));
+  sec.appendChild(h);
+  const list = el("div", "cc-signal-list");
+  for (const s of d.signals) {
+    const card = el("article", `cc-signal ${s.direction}`);
+    const icon = el("span", "cc-signal-icon");
+    icon.innerHTML = svgIcon(SIGNAL_ICONS[s.direction] || SIGNAL_ICONS.flat);
+    const text = el("div", "cc-signal-text");
+    text.append(el("h3", null, s.headline), el("p", null, s.evidence));
+    const acts = el("div", "cc-signal-actions");
+    if (s.action) {
+      const go = el("button", "cc-go", `${s.action.label} →`);
+      go.type = "button";
+      go.addEventListener("click", () => compareNow(s.action.kind, s.action.a, s.action.b));
+      acts.appendChild(go);
+    }
+    if (s.hcps?.hcp_ids?.length) {
+      const v = el("button", "cc-go ghost", `View ${s.hcps.hcp_ids.length.toLocaleString()} HCPs`);
+      v.type = "button";
+      v.addEventListener("click", () => openHcpList(s.hcps, d.context.product));
+      acts.appendChild(v);
+    }
+    text.appendChild(acts);
+    card.append(icon, text);
+    list.appendChild(card);
+  }
+  sec.appendChild(list);
+  return sec;
+}
+
+const LENSES = [["market", "Market"], ["hcps", "HCPs"], ["patients", "Patients"], ["competitors", "Competitors"]];
+
+function ccLenses(d) {
+  const sec = el("section", "cc-lenses");
+  const tabs = el("div", "cc-lens-tabs");
+  tabs.setAttribute("role", "tablist");
+  const body = el("div", "cc-lens-body");
+  const show = (id) => {
+    ccLens = id;
+    for (const b of tabs.children) b.classList.toggle("on", b.dataset.id === id);
+    const L = d.lenses[id];
+    const q = el("p", "cc-lens-q", L.question);
+    const grid = el("div", "charts");
+    for (const spec of L.charts) {
+      const c = el("div", "chart");
+      grid.appendChild(c);
+      requestAnimationFrame(() => embed(c, spec));
+    }
+    const asks = el("div", "cc-lens-asks");
+    asks.appendChild(el("span", null, "Ask CIQ"));
+    for (const text of L.questions) {
+      const b = el("button", "fu", text);
+      b.type = "button";
+      b.addEventListener("click", () => submit(text));
+      asks.appendChild(b);
+    }
+    body.replaceChildren(q, grid, asks);
+  };
+  for (const [id, label] of LENSES) {
+    const b = el("button", "cc-lens-tab", label);
+    b.type = "button";
+    b.dataset.id = id;
+    b.setAttribute("role", "tab");
+    b.addEventListener("click", () => show(id));
+    tabs.appendChild(b);
+  }
+  sec.append(tabs, body);
+  show(ccLens);
+  return sec;
+}
+
+function ccNotes(d) {
+  const n = el("p", "cc-notes");
+  n.textContent = d.notes.join(" ");
+  return n;
+}
+
+// run a comparison straight from a Command Center signal
+async function compareNow(kind, a, b) {
+  if (state.busy || !kind || !a || !b) return;
+  try {
+    const r = await fetch("/api/compare", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ kind, a, b, product: state.product, conversation_id: state.convId }) });
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.detail || r.statusText);
+    showPanelResult(data);
+  } catch (e) {
+    alert("Could not run the comparison: " + (e.message || e));
+  }
+}
+
+// A table with a search box. Matching is on the values as displayed (so "20.3%" finds a 0.203 share);
+// several words must all match. onFilter(rows, filtering) lets callers export/save just the matches.
+function searchableTable(rows, { total = rows.length, noun = "HCPs", onFilter } = {}) {
+  const box = el("div", "st");
+  const bar = el("label", "st-bar");
+  const icon = el("span", "st-icon");
+  icon.innerHTML = svgIcon("M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14zM20 20l-3.5-3.5");
+  const input = el("input", "st-input");
+  input.type = "search";
+  input.placeholder = `Search ${noun} by id or any value`;
+  input.setAttribute("aria-label", `Search ${noun}`);
+  const count = el("span", "st-count");
+  bar.append(icon, input, count);
+  const wrap = el("div", "table-wrap st-wrap");
+  box.append(bar, wrap);
+  const full = renderTable(rows);
+  const text = [...full.querySelectorAll("tbody tr")].map((tr) => [...tr.cells].map((c) => c.textContent).join(" ").toLowerCase());
+  const apply = () => {
+    const terms = input.value.trim().toLowerCase().split(/\s+/).filter(Boolean);
+    const hit = terms.length ? rows.filter((_, i) => terms.every((t) => text[i].includes(t))) : rows;
+    wrap.replaceChildren(!terms.length ? full : hit.length ? renderTable(hit) : el("p", "st-empty", `No ${noun} match “${input.value.trim()}”`));
+    count.textContent = terms.length
+      ? `${hit.length.toLocaleString()} of ${rows.length.toLocaleString()}`
+      : `${total.toLocaleString()} ${noun}` + (rows.length < total ? ` · searching the first ${rows.length.toLocaleString()}` : "");
+    onFilter?.(hit, terms.length > 0);
+  };
+  input.addEventListener("input", apply);
+  input.addEventListener("keydown", (e) => { if (e.key === "Escape" && input.value) { e.stopPropagation(); input.value = ""; apply(); } });
+  apply();
+  return { node: box, input };
+}
+
+// HCP list drawer: searchable table, export, save as cohort, compare the cohort
+function openHcpList(list, product) {
+  const back = el("div", "modal-back");
+  const m = el("div", "modal hcpm");
+  m.setAttribute("role", "dialog");
+  m.setAttribute("aria-modal", "true");
+  const head = el("header", "cm-head");
+  const ht = el("div", "cm-head-text");
+  ht.append(el("span", "cm-kicker", `${list.hcp_ids.length.toLocaleString()} HCPs`), el("h2", null, list.label));
+  const x = el("button", "cm-x");
+  x.type = "button"; x.setAttribute("aria-label", "Close");
+  x.innerHTML = svgIcon("M6 6l12 12M18 6L6 18");
+  head.append(ht, x);
+  const body = el("div", "cm-body");
+  let shown = list.rows, filtering = false;
+  const acts = el("div", "cm-actions");
+  const exp = el("button", "cm-btn", "Export CSV");
+  exp.type = "button";
+  exp.addEventListener("click", () => downloadCSV({ tool: "hcps", data: { list: shown } }));
+  const form = el("form", "dg-save");
+  const name = el("input"); name.value = list.label; name.setAttribute("aria-label", "Cohort name");
+  const save = el("button", "cm-btn primary", "Save as cohort"); save.type = "submit";
+  form.append(name, save);
+  const table = searchableTable(list.rows, { total: list.hcp_ids.length, onFilter: (rows, f) => {
+    shown = rows; filtering = f;
+    exp.textContent = f ? `Export ${rows.length.toLocaleString()} (CSV)` : "Export CSV";
+    save.textContent = f ? `Save ${rows.length.toLocaleString()} as cohort` : "Save as cohort";
+    save.disabled = f && !rows.length;
+  } });
+  table.node.querySelector(".st-wrap").classList.add("hcp-table");
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    save.disabled = true;
+    const r = await fetch("/api/cohorts", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: name.value, product,
+        hcp_ids: filtering ? shown.map((r) => r.hcp_id) : list.hcp_ids,
+        definition: filtering ? `${list.label}, filtered by “${table.input.value.trim()}”` : list.label }) });
+    const saved = await r.json();
+    if (!r.ok) { save.disabled = false; alert(saved.detail || r.statusText); return; }
+    cx.opts = null;
+    const cmp = el("button", "cm-btn primary", "Compare this cohort vs all HCPs");
+    cmp.type = "button";
+    cmp.addEventListener("click", () => { close(); compareNow("hcp", `saved:${saved.id}`, "all"); });
+    form.replaceChildren(el("span", "dg-saved", `✓ Saved “${saved.name}”`), cmp);
+  });
+  acts.append(form, exp);
+  body.append(table.node, acts);
+  m.append(head, body);
+  back.appendChild(m);
+  document.body.appendChild(back);
+  const close = () => { back.remove(); document.removeEventListener("keydown", onKey); };
+  const onKey = (e) => { if (e.key === "Escape") close(); };
+  document.addEventListener("keydown", onKey);
+  x.addEventListener("click", close);
+  back.addEventListener("click", (e) => { if (e.target === back) close(); });
+  table.input.focus();
 }
 
 // ---------------------------------------------------------------- history
@@ -265,7 +674,7 @@ async function openConversation(id) {
   const box = $("#messages");
   box.replaceChildren();
   let lastTools = [];
-  if (conv.product) { state.product = conv.product; $("#productSelect").value = conv.product; }
+  if (conv.product) { state.product = conv.product; setProductUI(conv.product); }
   for (const t of conv.transcript) {
     if (t.role === "user") addUserMsg(t.text, t.product, Boolean(t.answer_to));
     else {
@@ -289,7 +698,7 @@ function addUserMsg(text, product, isAnswer) {
   const m = el("div", "msg user");
   const b = el("div", "bubble");
   if (isAnswer) b.appendChild(el("span", "b-brand", "Your answer"));
-  else if (product) b.appendChild(el("span", "b-brand", `Focus: ${product}`));
+  else if (product) b.appendChild(el("span", "b-brand", `Brand: ${product}`));
   b.appendChild(document.createTextNode(text));
   m.appendChild(b);
   $("#messages").appendChild(m);
@@ -1155,10 +1564,10 @@ function cxPicker(side) {
   const val = cx[side];
   const set = (v) => { cx[side] = v; paintCompare(); };
   if (cx.mode === "brands") {
-    const opts = (state.meta?.products || []).map((p) => ({ id: p.product, label: p.product, detail: `${p.drug_class} · ${p.patients} patients` }));
-    box.appendChild(cxSelect(opts, val, set));
+    box.appendChild(brandPicker(val, set, { label: `Side ${side.toUpperCase()} brand`, wide: true }).node);
     const p = state.meta?.products.find((x) => x.product === val);
-    if (p) box.appendChild(el("span", "cx-hint", `${p.drug_class} · ${p.patients.toLocaleString()} patients`));
+    const nice = (c) => c.split(" ").map((w) => (/\d/.test(w) || w.length <= 4 ? w : w.toLowerCase())).join(" ");
+    if (p) box.appendChild(el("span", "cx-hint", `${nice(p.drug_class)} · ${p.molecules} · ${p.patients.toLocaleString()} patients`));
   } else if (cx.mode === "hcp") {
     const groups = [["Segments", cx.opts.hcp.filter((o) => !o.id.startsWith("decile:") && !o.saved)],
       [`Deciles (${state.product} volume)`, cx.opts.hcp.filter((o) => o.id.startsWith("decile:"))],
@@ -1231,7 +1640,7 @@ function paintCompare() {
   item("Same market", c.market.replace(/\s*\(.*\)\s*/, " (NSCLC)"));
   item("Same period", `${fmtMonth(c.start)} – ${fmtMonth(c.end)}`);
   item("Same definitions", "metrics, lines of therapy, HCP attribution");
-  if (cx.mode !== "brands") item("Focus brand", state.product);
+  if (cx.mode !== "brands") item("Brand", state.product);
   $("#cxErr").textContent = cx.a === cx.b ? "Pick two different sides." : "";
   $("#cxGo").disabled = cx.a === cx.b;
 }
@@ -1383,20 +1792,29 @@ function renderDiagnostic(res) {
     const frame = res.data.opportunity_hcps;
     const tableBox = el("div", "dg-opp-table");
     tableBox.hidden = true;
+    let shown = frame || [], filtering = false, search = null;
+    const save = el("button", "cm-btn primary", "Save as cohort");
+    const exp = el("button", "cm-btn", "Export CSV");
     if (frame?.length) {
       const view = el("button", "cm-btn", "View HCPs");
       view.type = "button";
       view.addEventListener("click", () => {
         tableBox.hidden = !tableBox.hidden;
         view.textContent = tableBox.hidden ? "View HCPs" : "Hide HCPs";
-        if (!tableBox.firstChild) { const w = el("div", "table-wrap"); w.appendChild(renderTable(frame.slice(0, 200))); tableBox.appendChild(w); }
+        if (!search) {
+          search = searchableTable(frame, { total: opp.count, onFilter: (rows, f) => {
+            shown = rows; filtering = f;
+            exp.textContent = f ? `Export ${rows.length.toLocaleString()} (CSV)` : "Export CSV";
+            save.textContent = f ? `Save ${rows.length.toLocaleString()} as cohort` : "Save as cohort";
+          } });
+          tableBox.appendChild(search.node);
+        }
+        if (!tableBox.hidden) search.input.focus();
       });
-      const exp = el("button", "cm-btn", "Export CSV");
       exp.type = "button";
-      exp.addEventListener("click", () => downloadCSV({ tool: "opportunity_hcps", data: { hcps: frame } }));
+      exp.addEventListener("click", () => downloadCSV({ tool: "opportunity_hcps", data: { hcps: shown } }));
       btns.append(view, exp);
     }
-    const save = el("button", "cm-btn primary", "Save as cohort");
     save.type = "button";
     const form = el("form", "dg-save");
     form.hidden = true;
@@ -1412,7 +1830,9 @@ function renderDiagnostic(res) {
       ok.disabled = true;
       try {
         const r = await fetch("/api/cohorts", { method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name: name.value, hcp_ids: opp.hcp_ids, definition: `${opp.label} (${A} vs ${B})`, product: opp.product }) });
+          body: JSON.stringify({ name: name.value, product: opp.product,
+            hcp_ids: filtering ? shown.map((r) => r.hcp_id) : opp.hcp_ids,
+            definition: `${opp.label} (${A} vs ${B})` + (filtering ? `, filtered by “${search.input.value.trim()}”` : "") }) });
         const saved = await r.json();
         if (!r.ok) throw new Error(saved.detail || r.statusText);
         cx.opts = null;   // refresh the dialog's cohort list

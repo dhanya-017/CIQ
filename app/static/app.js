@@ -10,8 +10,27 @@ const el = (tag, cls, text) => {
 };
 const fmtInt = (v) => (v == null ? "—" : Number(v).toLocaleString());
 const fmtPct = (v) => (v == null ? "—" : (v * 100).toFixed(1) + "%");
+const fmtMonth = (iso) => new Date(iso + "T00:00:00").toLocaleDateString(undefined, { month: "short", year: "numeric" });
+const fmtPeriod = (cov) => (cov ? `${fmtMonth(cov.data_start)} – ${fmtMonth(cov.data_end)}` : "");
+function fmtKpi(k) {
+  if (k.value == null) return "—";
+  switch (k.format) {
+    case "pct": return fmtPct(k.value);
+    case "days": return `${fmtInt(k.value)} days`;
+    case "num": return Number(k.value).toLocaleString(undefined, { maximumFractionDigits: 1 });
+    case "text": return String(k.value);
+    default: return fmtInt(k.value);
+  }
+}
+const svgIcon = (d) => `<svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path d="${d}" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+const ICONS = {
+  download: "M12 4v11M7 10l5 5 5-5M5 20h14",
+  image: "M4 5h16v14H4zM4 16l5-5 4 4 3-3 4 4",
+  expand: "M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5",
+  collapse: "M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5",
+};
 
-const state = { meta: null, product: null, convId: null, busy: false, controller: null };
+const state = { meta: null, product: null, convId: null, busy: false, controller: null, history: [] };
 
 // ---------------------------------------------------------------- init
 async function init() {
@@ -31,9 +50,13 @@ async function init() {
     sel.value = state.product;
     const c = meta.coverage;
     $("#footModel").textContent = `${meta.model} · Bedrock`;
+    $("#footStatus").title = `${meta.model} on Amazon Bedrock`;
+    $("#footStatus").dataset.tip = `${meta.model} · connected`;
     $("#hintModel").textContent = meta.model;
-    $("#footData").textContent = `${c.n_patients.toLocaleString()} patients · ${c.data_start} → ${c.data_end}`;
-    $("#chipData").textContent = `${meta.indication} · ${c.months} months of claims`;
+    $("#footData").textContent = `${c.n_patients.toLocaleString()} patients · ${fmtPeriod(c)}`;
+    $("#scopeMarket").textContent = meta.indication.replace(/\s*\(.*\)\s*/, "") || meta.indication;
+    $("#scopePeriod").textContent = fmtPeriod(c);
+    $("#chipData").title = `${meta.indication} · ${c.months} months of claims (${c.data_start} to ${c.data_end})`;
   } catch (e) {
     $("#footData").textContent = "Backend unavailable";
   }
@@ -53,12 +76,60 @@ function bindUI() {
   $("#btnStop").addEventListener("click", () => state.controller && state.controller.abort());
   $("#btnNew").addEventListener("click", newConversation);
   $("#btnCompare").addEventListener("click", startCompare);
-  $("#btnMenu").addEventListener("click", () => $("#app").classList.toggle("nav-open"));
+  $("#btnMenu").addEventListener("click", toggleSidebar);
+  $("#btnSideToggle").addEventListener("click", toggleSidebar);
+  $("#btnRecents").addEventListener("click", () => setSidebarCollapsed(false, true));
+  // in the rail, the search icon opens the sidebar and focuses the box
+  $("#searchRow").addEventListener("click", () => {
+    if ($("#app").classList.contains("nav-collapsed") && !narrowScreen.matches) focusSearch();
+  });
+  const mac = /Mac|iPhone|iPad/.test(navigator.platform);
+  $("#searchKbd").textContent = mac ? "⌘K" : "Ctrl K";
+  $("#searchRow").dataset.tip = `Search (${mac ? "⌘K" : "Ctrl+K"})`;
+  $("#historySearch").addEventListener("keydown", (e) => {
+    if (e.key === "Escape") { e.target.value = ""; renderHistory(); e.target.blur(); }
+    if (e.key === "Enter") $("#historyList li:not(.empty)")?.click();
+  });
+  let collapsed = false;
+  try { collapsed = localStorage.getItem("ciq.navCollapsed") === "1"; } catch (e) { /* storage blocked */ }
+  setSidebarCollapsed(collapsed);
+  $("#historySearch").addEventListener("input", renderHistory);
+  document.addEventListener("keydown", (e) => {
+    const open = document.querySelector(".card.expanded");
+    if (e.key === "Escape" && open) open.dispatchEvent(new Event("collapse"));
+    const mod = (e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey;
+    if (mod && e.key.toLowerCase() === "b") { e.preventDefault(); toggleSidebar(); }
+    if (mod && e.key.toLowerCase() === "k") { e.preventDefault(); focusSearch(); }
+  });
   $("#productSelect").addEventListener("change", (e) => {
     state.product = e.target.value;
     localStorage.setItem("ciq.product", state.product);
     if (!state.convId) renderWelcome();
   });
+}
+
+// phones: the sidebar is an off-canvas drawer; wider screens: it collapses to an icon rail (remembered)
+const narrowScreen = window.matchMedia("(max-width: 900px)");
+function toggleSidebar() {
+  if (narrowScreen.matches) $("#app").classList.toggle("nav-open");
+  else setSidebarCollapsed(!$("#app").classList.contains("nav-collapsed"), true);
+}
+function focusSearch() {
+  if (narrowScreen.matches) $("#app").classList.add("nav-open");
+  else setSidebarCollapsed(false, true);
+  $("#historySearch").focus();
+}
+function setSidebarCollapsed(on, remember) {
+  $("#app").classList.toggle("nav-collapsed", on);
+  const label = on ? "Expand sidebar" : "Collapse sidebar";
+  for (const btn of [$("#btnMenu"), $("#btnSideToggle")]) {
+    btn.setAttribute("aria-label", label);
+    btn.setAttribute("aria-expanded", String(!on));
+  }
+  $("#btnSideToggle").dataset.tip = label;
+  if (remember) try { localStorage.setItem("ciq.navCollapsed", on ? "1" : "0"); } catch (e) { /* storage blocked */ }
+  // charts size to their container; let them re-measure once the grid transition ends
+  setTimeout(() => window.dispatchEvent(new Event("resize")), 220);
 }
 
 function autosize() {
@@ -110,18 +181,30 @@ async function renderWelcome() {
 
 // ---------------------------------------------------------------- history
 async function loadHistory() {
+  try { state.history = await (await fetch("/api/conversations")).json(); } catch (e) { /* offline */ }
+  renderHistory();
+}
+
+function renderHistory() {
   const ul = $("#historyList");
-  let items = [];
-  try { items = await (await fetch("/api/conversations")).json(); } catch (e) { /* offline */ }
+  const items = state.history;
+  const q = $("#historySearch").value.trim().toLowerCase();
+  const shown = q ? items.filter((c) => `${c.title} ${c.product || ""}`.toLowerCase().includes(q)) : items;
   ul.replaceChildren();
   if (!items.length) { ul.appendChild(el("li", "empty", "No analyses yet")); return; }
-  for (const c of items) {
+  if (!shown.length) { ul.appendChild(el("li", "empty", "No matches")); return; }
+  for (const c of shown) {
     const li = el("li");
     if (c.id === state.convId) li.classList.add("active");
-    li.appendChild(el("span", "h-title", c.title));
+    const txt = el("span", "h-text");
+    txt.append(el("span", "h-title", c.title));
+    if (c.product) txt.append(el("span", "h-meta", c.product));
+    li.appendChild(txt);
     li.title = `${c.title}\n${c.product || ""} · ${new Date(c.updated_at * 1000).toLocaleString()}`;
     const del = el("button", "h-del", "×");
+    del.type = "button";
     del.title = "Delete";
+    del.setAttribute("aria-label", `Delete “${c.title}”`);
     del.addEventListener("click", async (e) => {
       e.stopPropagation();
       if (!confirm("Delete this analysis?")) return;
@@ -140,6 +223,7 @@ function newConversation() {
   state.convId = null;
   history.replaceState(null, "", "/");
   $("#messages").replaceChildren();
+  setFollowups([]);
   $("#welcome").hidden = false;
   $("#convTitle").textContent = "New analysis";
   renderWelcome();
@@ -158,14 +242,17 @@ async function openConversation(id) {
   $("#welcome").hidden = true;
   const box = $("#messages");
   box.replaceChildren();
+  let lastTools = [];
   if (conv.product) { state.product = conv.product; $("#productSelect").value = conv.product; }
   for (const t of conv.transcript) {
     if (t.role === "user") addUserMsg(t.text, t.product);
     else {
       const m = createAssistantMsg();
       m.restore(t);
+      lastTools = (t.results || []).map((r) => r.tool);
     }
   }
+  setFollowups(lastTools);
   loadHistory();
 }
 
@@ -186,6 +273,7 @@ async function submit(preset) {
   if (!text || state.busy) return;
   input.value = "";
   autosize();
+  setFollowups([]);
   $("#welcome").hidden = true;
   addUserMsg(text, state.product);
   const m = createAssistantMsg();
@@ -284,8 +372,14 @@ function createAssistantMsg() {
   trace.append(sum, tbody);
 
   const cards = el("div", "cards");
+  const answerBox = el("section", "answer-box");
+  answerBox.hidden = true;
+  const ahead = el("header", "answer-head");
+  ahead.append(el("span", "answer-label", "CIQ read-out"), el("span", "answer-sub", "Interpretation of the analyses above, written by the model"));
   const answer = el("div", "answer streaming");
-  body.append(trace, cards, answer);
+  answerBox.append(ahead, answer);
+  body.append(trace, cards, answerBox);
+  const tools = [];
   $("#messages").appendChild(root);
   scrollDown(true);
 
@@ -294,7 +388,13 @@ function createAssistantMsg() {
   const stepEls = {};
   const render = () => {
     raf = 0;
+    answerBox.hidden = !md;
     answer.innerHTML = DOMPurify.sanitize(marked.parse(md));
+    for (const t of answer.querySelectorAll("table")) {
+      const w = el("div", "md-table");
+      t.replaceWith(w);
+      w.appendChild(t);
+    }
     scrollDown();
   };
   const updateCount = () => {
@@ -326,7 +426,7 @@ function createAssistantMsg() {
         if (ev.ok && ev.result) li.appendChild(el("code", null, paramText(ev.result.params)));
         if (!ev.ok) li.appendChild(el("span", "s-err", ev.error));
       }
-      if (ev.ok) cards.appendChild(renderCard(ev.result));
+      if (ev.ok && !ev.result.meta?.internal) { cards.appendChild(renderCard(ev.result)); tools.push(ev.result.tool); }
       scrollDown();
     },
     error(msg) {
@@ -339,10 +439,12 @@ function createAssistantMsg() {
       root.classList.remove("working");
       const n = steps.children.length;
       status.textContent = n ? "Analysis complete" : "Answered";
+      if (md && !state.restoring) setFollowups(tools);
       if (!n && !think.textContent) trace.remove();
       else trace.open = false;
     },
     restore(turn) {
+      state.restoring = true;
       think.textContent = turn.thinking || "";
       for (const s of turn.steps || []) {
         const li = el("li", "step " + (s.ok === false ? "err" : "ok"));
@@ -351,10 +453,11 @@ function createAssistantMsg() {
         steps.appendChild(li);
       }
       updateCount();
-      for (const r of turn.results || []) cards.appendChild(renderCard(r));
+      for (const r of turn.results || []) if (!r.meta?.internal) cards.appendChild(renderCard(r));
       md = turn.text || "";
       render();
       api.finish();
+      state.restoring = false;
     },
   };
   return api;
@@ -555,52 +658,107 @@ function renderScorecard(res) {
 }
 
 // ---------------------------------------------------------------- result cards
+function actionButton(icon, label, onClick) {
+  const b = el("button", "card-act icon");
+  b.type = "button";
+  b.title = label;
+  b.setAttribute("aria-label", label);
+  b.innerHTML = svgIcon(ICONS[icon]);
+  b.addEventListener("click", onClick);
+  return b;
+}
+
+function renderKpis(kpis) {
+  const strip = el("div", "kpi-strip");
+  for (const k of kpis) {
+    const t = el("div", "kpi-tile" + (k.lead ? " lead" : ""));
+    t.append(el("div", "kt-val", fmtKpi(k)), el("div", "kt-lab", k.label));
+    if (k.note) t.appendChild(el("div", "kt-note", k.note));
+    strip.appendChild(t);
+  }
+  return strip;
+}
+
 function renderCard(res) {
   if (res.tool === "compare_products") return renderCompare(res);
   const card = el("article", "card");
   const head = el("header", "card-head");
-  head.append(el("div", "card-title", res.title), el("span", "card-tool", res.tool));
+  const titles = el("div", "card-titles");
+  titles.appendChild(el("h3", "card-title", res.title));
+  if (res.subtitle) titles.appendChild(el("p", "card-sub", res.subtitle));
+  const meta = el("div", "card-meta");
+  const period = fmtPeriod(res.meta?.coverage);
+  if (period) meta.appendChild(el("span", null, `Claims ${period}`));
+  meta.appendChild(el("span", "card-tool", res.tool));
+  titles.appendChild(meta);
+
+  const controls = el("div", "card-controls");
   const tabs = el("div", "tabs");
+  tabs.setAttribute("role", "tablist");
   const views = {};
   const body = el("div", "card-body");
   const names = res.charts?.length ? ["Chart", "Data", "Notes"] : ["Data", "Notes"];
   for (const n of names) {
     const b = el("button", "tab", n);
     b.type = "button";
+    b.setAttribute("role", "tab");
     b.addEventListener("click", () => show(n));
     tabs.appendChild(b);
     views[n] = { btn: b, pane: null };
   }
-  const dl = el("button", "card-act", "CSV");
-  dl.type = "button";
-  dl.title = "Download data as CSV";
-  dl.addEventListener("click", () => downloadCSV(res));
-  head.append(tabs, dl);
+  const chartViews = [];
+  const actions = el("div", "card-actions");
+  actions.appendChild(actionButton("download", "Download data (CSV)", () => downloadCSV(res)));
+  const png = actionButton("image", "Download charts (PNG)", () => downloadPNG(res, chartViews));
+  png.hidden = !res.charts?.length;
+  const expand = actionButton("expand", "Expand", () => setExpanded(!card.classList.contains("expanded")));
+  actions.append(png, expand);
+  controls.append(tabs, actions);
+  head.append(titles, controls);
   card.append(head, body);
 
+  function setExpanded(on) {
+    card.classList.toggle("expanded", on);
+    document.body.classList.toggle("has-expanded", on);
+    expand.innerHTML = svgIcon(ICONS[on ? "collapse" : "expand"]);
+    expand.title = on ? "Collapse (Esc)" : "Expand";
+    // vega-embed's container width follows window resizes
+    requestAnimationFrame(() => window.dispatchEvent(new Event("resize")));
+  }
+  card.addEventListener("collapse", () => setExpanded(false));
+
   function build(n) {
-    const pane = el("div");
+    const pane = el("div", "pane");
     if (n === "Chart") {
+      if (res.kpis?.length) pane.appendChild(renderKpis(res.kpis));
       const grid = el("div", "charts");
+      // a bar chart + donut pair: give the bar chart more room
+      if (res.charts.length === 2 && res.charts[1].layer?.[0]?.mark?.type === "arc") grid.classList.add("split");
       pane.appendChild(grid);
       for (const spec of res.charts) {
         const c = el("div", "chart");
         grid.appendChild(c);
-        requestAnimationFrame(() => embed(c, spec));
+        requestAnimationFrame(() => embed(c, spec).then((v) => v && chartViews.push(v)));
       }
-      if (res.insights?.length) {
-        const ul = el("ul", "card-insights");
-        for (const i of res.insights) ul.appendChild(el("li", null, i));
-        pane.appendChild(ul);
+      // older saved results predate `observations`
+      const observations = res.observations ?? res.insights ?? [];
+      if (observations.length) {
+        const box = el("div", "card-insights");
+        box.appendChild(el("h4", null, observations.length === 1 ? "Key observation" : "Key observations"));
+        const ul = el("ul");
+        for (const i of observations) ul.appendChild(el("li", null, i));
+        box.appendChild(ul);
+        pane.appendChild(box);
       }
     } else if (n === "Data") {
       pane.appendChild(renderData(res.data));
     } else {
       const notes = el("div", "notes");
-      if (res.insights?.length) {
+      const figures = [...new Set([...(res.insights || []), ...(res.observations || [])])];
+      if (figures.length) {
         notes.appendChild(el("h4", null, "Key figures"));
         const ul = el("ul");
-        for (const i of res.insights) ul.appendChild(el("li", null, i));
+        for (const i of figures) ul.appendChild(el("li", null, i));
         notes.appendChild(ul);
       }
       if (res.caveats?.length) {
@@ -618,12 +776,49 @@ function renderCard(res) {
   function show(n) {
     for (const [k, v] of Object.entries(views)) {
       v.btn.classList.toggle("active", k === n);
+      v.btn.setAttribute("aria-selected", k === n);
       if (v.pane) v.pane.hidden = k !== n;
     }
     if (!views[n].pane) { views[n].pane = build(n); body.appendChild(views[n].pane); }
   }
   show(names[0]);
   return card;
+}
+
+// ---------------------------------------------------------------- follow-up suggestions
+const FOLLOWUPS = {
+  hcp_product_share_deciles: ["Which HCP deciles have the biggest {p} share opportunity?",
+    "Is the market more concentrated across HCPs after first {p}?", "Compare {p} with its top competitors"],
+  hcp_market_concentration: ["Decile the HCPs based on {p} market share", "What is the source of business for {p}?",
+    "Compare {p} with its top competitors"],
+  payer_mix: ["What is the source of business for {p}?", "How persistent are {p} patients?",
+    "Compare {p} with its top competitors"],
+  persistency: ["What share of {p} patients progress to line 3+?", "What is the {p} patient share in each line?",
+    "Compare {p} persistency with its top competitors"],
+  product_share_by_line: ["What are the most common treatments in each line?", "How persistent are {p} patients?",
+    "Compare {p} with its top competitors"],
+  line_progression: ["What is the {p} patient share in each line?", "What are the most common treatments in each line?",
+    "How persistent are {p} patients?"],
+  compare_products: ["Decile the HCPs based on {p} market share", "What is the payer mix for {p}?",
+    "How persistent are {p} patients?"],
+};
+
+function setFollowups(tools) {
+  const box = $("#followups");
+  const p = state.product;
+  let qs = [];
+  for (const t of tools) qs.push(...(FOLLOWUPS[t] || []));
+  if (tools.length && !qs.length) {
+    for (const g of state.meta?.suggestions || []) qs.push(g.questions[0]);
+  }
+  qs = [...new Set(qs.map((q) => q.replaceAll("{p}", p)))].slice(0, 3);
+  box.replaceChildren(...qs.map((q) => {
+    const b = el("button", "fu", q);
+    b.type = "button";
+    b.addEventListener("click", () => submit(q));
+    return b;
+  }));
+  box.hidden = !qs.length || !p;
 }
 
 function renderData(data) {
@@ -692,8 +887,19 @@ function downloadCSV(res) {
 function embed(node, spec, height) {
   const s = structuredClone(spec);
   if (height) s.height = height;
-  vegaEmbed(node, s, { actions: { export: true, source: false, compiled: false, editor: false }, renderer: "svg" })
+  // chart actions live in the card header (Download · Expand), not vega-embed's "…" menu
+  return vegaEmbed(node, s, { actions: false, renderer: "svg" })
+    .then((r) => r.view)
     .catch((e) => { node.textContent = "Chart failed to render: " + e.message; });
+}
+
+async function downloadPNG(res, views) {
+  for (const [i, v] of views.entries()) {
+    const a = el("a");
+    a.href = await v.toImageURL("png", 2);
+    a.download = `${res.tool}${views.length > 1 ? "_" + (i + 1) : ""}.png`;
+    a.click();
+  }
 }
 
 init();

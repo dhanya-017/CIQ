@@ -12,7 +12,7 @@ import pandas as pd
 
 from ciq import config
 from ciq.tools import charts
-from ciq.tools.base import ToolResult, call_fn, coverage, pct, query, resolve_product
+from ciq.tools.base import ToolResult, call_fn, coverage, kpi, pct, query, resolve_product
 
 LINE_BUCKET_NOTE = ("Lines of therapy are derived from observed claims only (regimen window "
                     f"{config.LOT_REGIMEN_WINDOW_DAYS}d, discontinuation gap {config.LOT_GAP_DAYS}d); "
@@ -225,6 +225,11 @@ def payer_mix(product: str | None = None, top_n: int = 10, level: str = "event")
     medicare = mix[mix["payment_type"].str.contains("Medicare", na=False)]["pct"].sum()
     return ToolResult(
         tool="payer_mix", title=f"{product} payer mix", params={"product": product, "top_n": top_n, "level": level},
+        subtitle=f"How {product} claims are paid, by payment type and by payer plan",
+        kpis=[kpi(f"{mix.iloc[0]['payment_type']} (largest)", mix.iloc[0]["pct"], "pct", lead=True),
+              kpi("Medicare, all forms", medicare, "pct"),
+              kpi("Top payer plan", payers.iloc[0]["pct_events"], "pct", note=f"plan {payers.iloc[0]['payer_plan_id']}")],
+        observations=[],
         data={"payment_type_mix": mix, "top_payers": payers},
         charts=[charts.donut(mix, "payment_type", "events" if level == "event" else "patients",
                              f"{product} claims by payment type"),
@@ -272,6 +277,11 @@ def line_progression(product: str | None = None, min_line: int = 3, clean_start_
     return ToolResult(
         tool="line_progression", title=f"Progression through lines - {scope}",
         params={"product": product, "min_line": min_line, "clean_start_only": clean_start_only}, data=df,
+        subtitle=f"How many {scope} move on to each later line of therapy",
+        kpis=[kpi(f"Reached line {min_line}+", later / cohort if cohort else 0, "pct", note=f"{later:,} of {cohort:,}",
+                  lead=True),
+              kpi("Patients in line 1", cohort)],
+        observations=[],
         charts=[charts.bar(df, "line", "patients_reaching", f"Patients reaching each line - {scope}", sort=None,
                            x_title="", y_title="Patients", tooltip_extra=[("pct_of_cohort", "quantitative", ".1%")])],
         insights=[f"{pct(later / cohort if cohort else 0)} of {scope} ({later:,}/{cohort:,}) progressed to line {min_line}+.",
@@ -288,6 +298,10 @@ def product_share_by_line(product: str | None = None, max_line_bucket: int = 4) 
     return ToolResult(
         tool="product_share_by_line", title=f"{product} patient share by line",
         params={"product": product, "max_line_bucket": max_line_bucket}, data=df,
+        subtitle=f"Share of patients in each line of therapy who receive {product}",
+        kpis=[kpi(f"Line {r.line_bucket} share", r.product_share, "pct", note=f"{r.product_patients:,} patients",
+                  lead=i == 0) for i, r in enumerate(df.itertuples())][:4],
+        observations=[] if len(df) <= 4 else None,
         charts=[charts.bar(df, "line", "product_share", f"{product} share of patients in each line", sort=None,
                            y_format=".0%", x_title="", y_title="Patient share",
                            tooltip_extra=[("product_patients", "quantitative", ","), ("line_patients", "quantitative", ",")])],
@@ -413,6 +427,13 @@ def persistency(product: str | None = None, grace_days: int = 60, step_days: int
     return ToolResult(
         tool="persistency", title=f"{product} treatment persistency",
         params={"product": product, "grace_days": grace_days, "step_days": step_days},
+        subtitle=f"Share of new {product} patients still on therapy over time",
+        kpis=[kpi("Patients started", len(first)),
+              *[kpi(f"Persistent at {d} days", at(d), "pct", lead=d == 180)
+                for d in (90, 180) if at(d) is not None and curve["day"].max() >= d],
+              kpi("Median time on therapy", median, "days") if median else
+              kpi("Median time on therapy", "not reached", "text")],
+        observations=ins[:1],
         data={"curve": curve, "episodes": first.drop(columns=["episode_number"])},
         charts=[charts.line(curve, "day", "pct_persistent", f"{product} persistency (Kaplan-Meier)", x_type="quantitative",
                             y_format=".0%", x_title="Days since first claim", y_title="Patients persistent", step=True)],
@@ -459,11 +480,16 @@ def hcp_market_concentration(product: str | None = None, window_days: int = 730,
             ins.append(f"PRE period is thin ({int(pre['volume'])} administrations) - treat the comparison as directional.")
     return ToolResult(
         tool="hcp_market_concentration", title=f"HCP decile analysis around first {product}",
+        subtitle=f"Is lung-therapy volume concentrated in a few HCPs or spread out, before vs after first {product}?",
+        kpis=[kpi(f"{r.period}: top-10% HCP volume", r.top10pct_hcp_share, "pct", note=f"{r.hcps:,} HCPs · HHI {r.hhi:,.0f}",
+                  lead=r.period == "POST") for r in stats.itertuples()],
+        observations=ins[len(stats):],
         params={"product": product, "window_days": window_days, "method": method, "include_product": include_product},
         data={"deciles": dec, "concentration": stats, "hcp_volume": hcp},
         charts=[charts.grouped_bar(dec.astype({"period": str}), "decile", "pct_volume", "period",
                                    f"Market volume by HCP decile, pre vs post first {product}", y_format=".0%",
-                                   x_title="Decile (1 = highest-volume HCPs)", y_title="Share of market volume",
+                                   subtitle="Decile 1 = highest-volume HCPs",
+                                   x_title="Decile", y_title="Share of market volume",
                                    group_sort=["PRE", "POST"])],
         insights=ins,
         caveats=["Market = all lung systemic therapy administrations for the product's patients (supportive care excluded); "
@@ -481,19 +507,35 @@ def hcp_product_share_deciles(product: str | None = None, method: str = "volume"
     top = dec.iloc[0]
     grp = dec.assign(decile_group=dec["decile"].map(lambda d: f"Decile {d}" if d <= 3 else "Deciles 4-10"))
     grp = grp.groupby("decile_group", as_index=False)["product_volume"].sum()
+    grp = grp.set_index("decile_group").loc[[g for g in ["Decile 1", "Decile 2", "Decile 3", "Deciles 4-10"]
+                                              if g in set(grp["decile_group"])]].reset_index()
+    overall = dec["product_volume"].sum() / dec["market_volume"].sum()
+    low = dec.loc[dec["product_share_of_market"].idxmin()]
+    tail = dec.loc[dec["decile"] >= 4, "pct_product_volume"].sum()
     return ToolResult(
         tool="hcp_product_share_deciles", title=f"HCP deciles by {product} volume and market share",
         params={"product": product, "method": method}, data={"deciles": dec, "hcps": hcp},
+        subtitle=f"HCPs ranked into deciles by {product} volume, with {product}'s share of each decile's lung-therapy volume",
+        kpis=[kpi(f"HCPs prescribing {product}", int(dec["hcps"].sum())),
+              kpi(f"{product} share in decile 1", top["product_share_of_market"], "pct", lead=True,
+                  note="of those HCPs' lung-therapy volume"),
+              kpi(f"Of {product} volume comes from decile 1", top["pct_product_volume"], "pct",
+                  note=f"{int(top['hcps'])} HCPs"),
+              kpi(f"Overall {product} share", overall, "pct", note=f"across its {int(dec['hcps'].sum()):,} HCPs")],
+        observations=[f"{product} share falls from {pct(top['product_share_of_market'])} in decile 1 to "
+                      f"{pct(low['product_share_of_market'])} in decile {int(low['decile'])}; deciles 4-10 "
+                      f"({int(dec.loc[dec['decile'] >= 4, 'hcps'].sum()):,} HCPs) deliver {pct(tail)} of {product} volume."],
         charts=[charts.bar(dec.assign(decile=dec["decile"].astype(str)), "decile", "product_share_of_market",
                            f"{product} share of HCP lung-therapy volume by decile", sort=[str(d) for d in dec["decile"]], y_format=".0%",
-                           x_title="Decile (1 = highest " + product + " volume)", y_title=f"{product} market share",
+                           subtitle=f"Decile 1 = highest {product} volume", highlight=str(dec["decile"].iloc[0]),
+                           x_title="Decile", y_title=f"{product} market share",
                            tooltip_extra=[("hcps", "quantitative", None), ("product_volume", "quantitative", ",")]),
-                charts.donut(grp, "decile_group", "product_volume", f"{product} volume by HCP decile")],
+                charts.donut(grp, "decile_group", "product_volume", f"{product} volume by HCP decile",
+                             subtitle="Share of total volume", keep_order=True, neutral_label="Deciles 4-10")],
         insights=[f"{int(dec['hcps'].sum()):,} HCPs administered/prescribed {product}.",
                   f"Decile 1: {int(top['hcps'])} HCPs deliver {pct(top['pct_product_volume'])} of {product} volume with "
                   f"{pct(top['product_share_of_market'])} share of their lung-therapy volume.",
-                  f"Overall {product} share among its HCPs: "
-                  f"{pct(dec['product_volume'].sum() / dec['market_volume'].sum())}."],
+                  f"Overall {product} share among its HCPs: {pct(overall)}."],
         caveats=["Deciles rank HCPs by product volume (decile 1 = top); market = the HCP's lung systemic therapy volume."],
     )
 
@@ -673,11 +715,173 @@ _FORBIDDEN = re.compile(r"\b(insert|update|delete|drop|create|alter|attach|detac
                         r"pragma|set|call|checkpoint|vacuum)\b", re.I)
 
 
-def run_sql(sql: str, max_rows: int = 200) -> ToolResult:
+CHART_TYPES = ("bar", "line", "stacked_bar", "grouped_bar", "donut", "scatter", "heatmap")
+_FORMATS = {"percent": ".0%", "percent1": ".1%", "integer": ",.0f", "number": ",.2~f"}
+
+
+def _natural_order(values) -> list:
+    """Category order for axes: numeric-aware ('<18', '20-29', ... '80+'), with Unknown/Other/None last."""
+    def key(v):
+        t = str(v)
+        if t.strip().lower() in ("unknown", "other", "none", "null", "", "nan"):
+            return (2, 0.0, t)
+        m = re.search(r"-?\d+(\.\d+)?", t)
+        return (0, float(m.group()) - (1e9 if t.lstrip().startswith("<") else 0), t) if m else (1, 0.0, t)
+    return sorted(dict.fromkeys(str(v) for v in values), key=key)
+
+
+def _custom_chart(df: pd.DataFrame, chart: dict) -> tuple[dict | None, str | None]:
+    """Build a chart the model asked for from a query result. Returns (spec, None) or (None, reason).
+
+    Only columns present in the result can be plotted, so every chart is drawn from data the query really returned.
+    """
+    if not isinstance(chart, dict):
+        return None, "chart must be an object"
+    kind = chart.get("type")
+    if kind not in CHART_TYPES:
+        return None, f"chart.type must be one of {list(CHART_TYPES)}"
+    if df.empty:
+        return None, "the query returned no rows"
+    lower = {c.lower(): c for c in df.columns}
+
+    def col(key: str, required: bool = True) -> str | None:
+        name = chart.get(key)
+        if not name:
+            if required:
+                raise ValueError(f"chart.{key} is required for a {kind} chart")
+            return None
+        if name not in df.columns and str(name).lower() not in lower:
+            raise ValueError(f"chart.{key} '{name}' is not a column of the result (columns: {list(df.columns)})")
+        return name if name in df.columns else lower[str(name).lower()]
+
+    def numeric(c: str) -> None:
+        if not pd.api.types.is_numeric_dtype(df[c]):
+            raise ValueError(f"column '{c}' must be numeric to be plotted as a measure")
+
+    try:
+        x, y = col("x"), col("y")
+        color = col("color", required=kind in ("stacked_bar", "grouped_bar"))
+        value = col("value") if kind == "heatmap" else None
+        label = col("label", required=False) if kind == "scatter" else None
+        for c in ([x, y] if kind == "scatter" else [value] if kind == "heatmap" else [y]):
+            numeric(c)
+    except ValueError as e:
+        return None, str(e)
+
+    title = chart.get("title") or "Custom chart"
+    sub = chart.get("subtitle")
+    fmt = _FORMATS.get(chart.get("y_format") or "")
+    x_title, y_title = chart.get("x_title"), chart.get("y_title")
+    d = df.copy()
+    for c in d.columns:  # dates -> ISO strings so they sort and label cleanly
+        if pd.api.types.is_datetime64_any_dtype(d[c]):
+            d[c] = d[c].dt.strftime("%Y-%m-%d")
+    order = chart.get("sort", "desc" if kind == "bar" else "none")
+    n_cat = d[x].nunique()
+    if kind in ("bar", "stacked_bar", "grouped_bar", "line") and n_cat > 60:
+        return None, f"{n_cat} distinct x values is too many to chart; aggregate or limit in SQL (max 60)"
+    if kind == "donut" and d[x].nunique() > 12:
+        return None, "a donut needs 12 or fewer categories; use a bar chart or group the tail into 'Other' in SQL"
+
+    if kind == "bar":
+        sort = {"desc": "-y", "asc": "y"}.get(order)
+        if sort is None:
+            sort = list(dict.fromkeys(d[x].astype(str)))  # keep SQL order
+        d[x] = d[x].astype(str)
+        return charts.bar(d, x, y, title, subtitle=sub, horizontal=bool(chart.get("horizontal", n_cat > 8)),
+                          y_format=fmt, x_title=x_title if x_title is not None else "", y_title=y_title or y,
+                          sort=sort, highlight=chart.get("highlight")), None
+    if kind == "line":
+        x_type = "quantitative" if pd.api.types.is_numeric_dtype(df[x]) else \
+            "temporal" if pd.api.types.is_datetime64_any_dtype(df[x]) else "ordinal"
+        spec = charts.line(d, x, y, title, color=color, subtitle=sub, x_type=x_type, y_format=fmt,
+                           x_title=x_title if x_title is not None else "", y_title=y_title or y,
+                           domain=list(dict.fromkeys(d[color])) if color and d[color].nunique() <= 8 else None)
+        if x_type == "temporal":
+            dates = pd.to_datetime(df[x])
+            if (dates.dt.day == 1).all():  # period starts: label by month (or quarter), one tick per period
+                quarterly = dates.dt.month.isin([1, 4, 7, 10]).all() and dates.dt.month.nunique() > 1
+                spec["encoding"]["x"]["axis"] = {"format": "Q%q %Y" if quarterly else "%b %Y", "formatType": "time",
+                                                 "tickCount": {"interval": "month", "step": 3 if quarterly else 1}}
+                spec["encoding"]["tooltip"][0]["timeUnit"] = "yearquarter" if quarterly else "yearmonth"
+        return spec, None
+    if kind == "stacked_bar":
+        x_sort = list(dict.fromkeys(d[x].astype(str)))
+        d[x] = d[x].astype(str)
+        return charts.stacked_bar(d, x, y, color, title, subtitle=sub, normalize=bool(chart.get("normalize", False)),
+                                  x_sort=x_sort, x_title=x_title if x_title is not None else "", y_title=y_title or y,
+                                  horizontal=bool(chart.get("horizontal", False)), neutral_label="Other",
+                                  y_format=fmt), None
+    if kind == "grouped_bar":
+        x_sort = list(dict.fromkeys(d[x].astype(str)))
+        d[x] = d[x].astype(str)
+        return charts.grouped_bar(d, x, y, color, title, subtitle=sub, y_format=fmt, x_sort=x_sort,
+                                  x_title=x_title if x_title is not None else "", y_title=y_title or y,
+                                  group_sort=list(dict.fromkeys(d[color]))), None
+    if kind == "donut":
+        return charts.donut(d, x, y, title, subtitle=sub), None
+    if kind == "scatter":
+        if label and len(d) > 15:
+            keep = set(d.nlargest(6, x).index) | set(d.nlargest(6, y).index) | set(d.nsmallest(3, y).index)
+            d["_point_label"] = [str(v) if i in keep else "" for i, v in zip(d.index, d[label])]
+            label_col = "_point_label"
+        else:
+            label_col = label
+        return charts.scatter(d, x, y, title, color=color, subtitle=sub, y_format=fmt,
+                              x_format=_FORMATS.get(chart.get("x_format") or ""), x_title=x_title, y_title=y_title,
+                              label=label_col, tooltip_label=label), None
+    return charts.heatmap(d, x, y, value, title, subtitle=sub, value_format=fmt, x_title=x_title, y_title=y_title,
+                          x_sort=_natural_order(d[x]) if chart.get("sort") != "none" else list(dict.fromkeys(d[x].astype(str))),
+                          y_sort=list(dict.fromkeys(d[y].astype(str)))), None
+
+
+def run_sql(sql: str, max_rows: int = 200, chart: dict | None = None) -> ToolResult:
     s = sql.strip().rstrip(";")
     if ";" in s or not re.match(r"^\s*(select|with|from|describe|summarize)\b", s, re.I) or _FORBIDDEN.search(s):
         raise ValueError("Only a single read-only SELECT/WITH/DESCRIBE statement is allowed.")
-    df = query(f"select * from ({s}) limit {int(max_rows)}") if not re.match(r"^\s*(describe|summarize)", s, re.I) \
-        else query(s)
-    return ToolResult(tool="run_sql", title="Ad-hoc query", params={"sql": sql}, data=df,
-                      caveats=[f"Showing up to {max_rows} rows."])
+    lookup = bool(re.match(r"^\s*(describe|summarize)", s, re.I))
+    df = query(s) if lookup else query(f"select * from ({s}) limit {int(max_rows)}")
+    caveats = [f"Showing up to {max_rows} rows."]
+    specs, meta = [], {}
+    if lookup:
+        meta["internal"] = True  # a schema lookup by the model: shown in the trace, not as a result card
+    if chart:
+        spec, err = _custom_chart(df, chart)
+        if spec is None:
+            # an error goes back to the model as is_error, so the agent loop fixes the spec/SQL and retries
+            cols = ", ".join(f"{c} ({df[c].dtype})" for c in df.columns)
+            raise ValueError(f"Chart not drawn: {err}. The query returned {len(df)} rows with columns: {cols}. "
+                             "Fix the chart spec or the SQL and call run_sql again.")
+        specs.append(spec)
+        if len(df) >= max_rows:
+            caveats.append(f"The chart may be truncated: the query hit the {max_rows}-row cap.")
+        meta["chart_summary"] = _chart_summary(df, chart)
+    title = (chart or {}).get("title") if specs else None
+    return ToolResult(tool="run_sql", title=title or "Ad-hoc query", params={"sql": sql, **({"chart": chart} if chart else {})},
+                      subtitle="Custom chart built from an ad-hoc query of the claims warehouse" if specs else None,
+                      data=df, charts=specs, caveats=caveats, meta=meta)
+
+
+def _chart_summary(df: pd.DataFrame, chart: dict) -> str:
+    """What was actually drawn, in words, so the model can check the chart answers the question."""
+    kind, x, y = chart["type"], chart.get("x"), chart.get("y")
+    lower = {c.lower(): c for c in df.columns}
+    real = lambda c: c if c in df.columns else lower.get(str(c).lower(), c)
+    parts = [f"Drew a {kind.replace('_', ' ')} chart titled '{chart.get('title') or 'Custom chart'}'"]
+    if kind == "heatmap":
+        v = real(chart["value"])
+        parts.append(f"{real(y)} (rows, {df[real(y)].nunique()}) x {real(x)} (columns, {df[real(x)].nunique()}), "
+                     f"shaded by {v} (range {df[v].min():,.4g} to {df[v].max():,.4g})")
+    elif kind == "scatter":
+        parts.append(f"{len(df)} points: {real(x)} vs {real(y)}")
+    else:
+        m = real(y)
+        parts.append(f"{real(y)} by {real(x)}: {df[real(x)].nunique()} categories, {len(df)} rows, "
+                     f"values {df[m].min():,.4g} to {df[m].max():,.4g}")
+    if chart.get("color"):
+        parts.append(f"series = {real(chart['color'])} ({df[real(chart['color'])].nunique()} values)")
+    fmt = chart.get("y_format")
+    if fmt and fmt.startswith("percent") and df[real(chart.get("value") or y)].max() > 1.5:
+        parts.append("WARNING: y_format is percent but values exceed 1.5 - percent formats expect fractions "
+                     "(0.25 = 25%); divide by 100 in SQL or drop y_format")
+    return "; ".join(parts) + "."

@@ -35,6 +35,21 @@ class Tool:
                 "input_schema": {"type": "object", "properties": self.properties, "required": list(self.required)}}
 
 
+def _schema_hint() -> str:
+    """Column names of the main tables, so the model can write SQL without a `describe` round trip."""
+    tables = ["fact_drug_event", "fact_dx_event", "fact_px_event", "dim_patient", "dim_hcp", "lot_line", "lot_line_drug",
+              "ref_drug"]
+    try:
+        from ciq.tools.base import query
+        cols = query("select table_name, string_agg(column_name, ', ' order by ordinal_position) cols "
+                     "from information_schema.columns where table_name in (" + ", ".join(f"'{t}'" for t in tables) +
+                     ") group by 1")
+    except Exception:  # warehouse not built yet (e.g. during setup): fall back to table names only
+        return "Tables: " + ", ".join(tables) + "."
+    by_name = dict(zip(cols["table_name"], cols["cols"]))
+    return "Tables and columns:\n" + "\n".join(f"- {t}({by_name[t]})" for t in tables if t in by_name)
+
+
 def _int(desc: str, default: int, minimum: int = 1) -> dict:
     return {"type": "integer", "description": f"{desc} Default {default}.", "minimum": minimum}
 
@@ -117,11 +132,43 @@ TOOLS: list[Tool] = [
          {"products": {"type": "array", "items": {"type": "string"}, "minItems": 2, "maxItems": 4,
                        "description": "2-4 product names, e.g. [\"KEYTRUDA\", \"OPDIVO\", \"TECENTRIQ\"]."},
           "grace_days": _int("Persistency grace period.", 60)}, a.compare_products, required=("products",)),
-    Tool("run_sql", "Run a read-only SQL (DuckDB) query against the warehouse for questions no other tool answers. "
-         "Tables: fact_drug_event, fact_dx_event, fact_px_event, dim_patient, dim_hcp, lot_line, lot_line_drug, ref_drug. "
-         "Stored functions fn_* can be selected from (e.g. select * from fn_product_index('KEYTRUDA')).",
-         {"sql": {"type": "string", "description": "A single SELECT/WITH statement."},
-          "max_rows": _int("Row cap.", 200)}, a.run_sql, required=("sql",)),
+    Tool("run_sql", "Run a read-only SQL (DuckDB) query against the warehouse for questions no other tool answers, "
+         "optionally drawing a custom chart of the result. Use `chart` whenever the user asks for a chart, breakdown "
+         "or chart type the other tools don't produce (e.g. 'plot X by Y', 'show this as a line/heatmap'). "
+         "Stored functions fn_* can be selected from (e.g. select * from fn_product_index('KEYTRUDA')). "
+         + _schema_hint(),
+         {"sql": {"type": "string", "description": "A single SELECT/WITH statement. For a chart, aggregate in SQL to "
+                                                   "exactly the rows to plot, in long/tidy form (one row per x, or per "
+                                                   "x + series), ordered as they should appear."},
+          "max_rows": _int("Row cap.", 200),
+          "chart": {"type": "object", "description": "Optional chart of the query result, drawn in the platform's "
+                    "style. Columns must exist in the result. If the spec is invalid the call fails with the reason "
+                    "and the available columns - fix it and call again. The result then describes the chart drawn; "
+                    "check it answers the user's question.",
+                    "properties": {
+                        "type": {"type": "string", "enum": list(a.CHART_TYPES), "description":
+                                 "bar: one measure by category. line: trend over an ordered x (dates, months), "
+                                 "`color` for multiple series. stacked_bar: composition (needs `color`; "
+                                 "normalize=true for 100%). grouped_bar: compare series side by side (needs `color`). "
+                                 "donut: part-to-whole, <=6 categories. scatter: two measures (x and y numeric), "
+                                 "`label` names points. heatmap: two categories (x, y) shaded by `value`."},
+                        "x": {"type": "string", "description": "Column for the x axis / category (donut: slice)."},
+                        "y": {"type": "string", "description": "Column for the measure (heatmap: row category)."},
+                        "color": {"type": "string", "description": "Optional series column."},
+                        "value": {"type": "string", "description": "heatmap only: numeric column that shades the cells."},
+                        "label": {"type": "string", "description": "scatter only: column used to label each point."},
+                        "title": {"type": "string", "description": "Chart title in sentence case."},
+                        "subtitle": {"type": "string", "description": "One line: how to read it / what is counted."},
+                        "x_title": {"type": "string"}, "y_title": {"type": "string"},
+                        "y_format": {"type": "string", "enum": list(a._FORMATS),
+                                     "description": "percent/percent1 expect fractions (0.25 = 25%)."},
+                        "sort": {"type": "string", "enum": ["desc", "asc", "none"],
+                                 "description": "bar only: order bars by value, or 'none' to keep SQL order. Default desc."},
+                        "horizontal": {"type": "boolean", "description": "Bars along y (long labels). Default: auto."},
+                        "normalize": {"type": "boolean", "description": "stacked_bar: 100% stacks."},
+                        "highlight": {"type": "string", "description": "bar only: x value to call out."}},
+                    "required": ["type", "x", "y"]}},
+         a.run_sql, required=("sql",)),
 ]
 
 _BY_NAME = {t.name: t for t in TOOLS}

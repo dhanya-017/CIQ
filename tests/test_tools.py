@@ -53,6 +53,55 @@ def test_sql_guard():
         run_tool("run_sql", {"sql": "drop table dim_patient"})
 
 
+TOP_PRODUCTS = "select product from fact_drug_event group by 1 order by count(distinct patient_id) desc limit 4"
+CHART_CASES = [
+    ("bar", "select age_group, count(*) patients from dim_patient where is_treated group by 1",
+     {"x": "age_group", "y": "patients", "sort": "none"}),
+    ("line", f"select date_trunc('month', service_date) as month_start, product, count(distinct patient_id) patients "
+             f"from fact_drug_event where product in ({TOP_PRODUCTS}) group by 1, 2 order by 1",
+     {"x": "month_start", "y": "patients", "color": "product"}),
+    ("stacked_bar", "select 'Line ' || line_number line, combination_type, count(*) n from lot_line "
+                    "where line_number <= 3 group by 1, 2 order by 1", {"x": "line", "y": "n", "color": "combination_type",
+                                                                        "normalize": True, "y_format": "percent"}),
+    ("grouped_bar", f"select payment_type, product, count(distinct patient_id) patients from fact_drug_event "
+                    f"where product in ({TOP_PRODUCTS}) group by 1, 2", {"x": "payment_type", "y": "patients", "color": "product"}),
+    ("donut", "select payment_type, count(*) n from dim_patient group by 1", {"x": "payment_type", "y": "n"}),
+    ("scatter", "select product, count(distinct patient_id) patients, avg(days_supply) avg_days from fact_drug_event "
+                "group by 1 having count(*) > 50", {"x": "patients", "y": "avg_days", "label": "product"}),
+    ("heatmap", f"select d.product, p.age_group, count(distinct d.patient_id) patients from fact_drug_event d "
+                f"join dim_patient p using (patient_id) where d.product in ({TOP_PRODUCTS}) group by 1, 2",
+     {"x": "age_group", "y": "product", "value": "patients"}),
+]
+
+
+@pytest.mark.parametrize("kind,sql,chart", CHART_CASES)
+def test_run_sql_chart(kind, sql, chart):
+    res = run_tool("run_sql", {"sql": sql, "chart": {"type": kind, "title": f"Test {kind}", **chart}})
+    d = res.to_dict()
+    json.dumps(d)
+    assert len(d["charts"]) == 1 and d["title"] == f"Test {kind}"
+    assert "## chart shown to the user" in res.to_llm_text()
+
+
+@pytest.mark.parametrize("chart,reason", [
+    ({"type": "bar", "x": "age_grp", "y": "patients"}, "not a column"),       # typo'd column
+    ({"type": "bar", "x": "patients", "y": "age_group"}, "must be numeric"),   # measure on the wrong axis
+    ({"type": "grouped_bar", "x": "age_group", "y": "patients"}, "color is required"),
+    ({"type": "radar", "x": "age_group", "y": "patients"}, "chart.type"),
+])
+def test_run_sql_chart_errors_go_back_to_model(chart, reason):
+    # errors raise so the agent loop returns them as is_error and the model retries with a fixed spec
+    with pytest.raises(ValueError, match=reason) as e:
+        run_tool("run_sql", {"sql": "select age_group, count(*) patients from dim_patient group by 1", "chart": chart})
+    assert "columns: age_group" in str(e.value) and "call run_sql again" in str(e.value)
+
+
+def test_chart_summary_flags_percent_mismatch():
+    res = run_tool("run_sql", {"sql": "select age_group, 100.0 * count(*) / sum(count(*)) over () pct from dim_patient group by 1",
+                               "chart": {"type": "bar", "x": "age_group", "y": "pct", "y_format": "percent"}})
+    assert "WARNING" in res.meta["chart_summary"]
+
+
 if __name__ == "__main__":
     for n, a in CASES:
         r = run_tool(n, a)

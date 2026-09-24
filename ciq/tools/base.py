@@ -81,6 +81,11 @@ def pct(x: float, digits: int = 1) -> str:
     return f"{x * 100:.{digits}f}%"
 
 
+def kpi(label: str, value: Any, fmt: str = "int", note: str | None = None, lead: bool = False) -> dict:
+    """Headline number for the UI's KPI strip. fmt: int | pct | num | days. lead=True marks the key takeaway."""
+    return {"label": label, "value": value, "format": fmt, "note": note, "lead": lead}
+
+
 @dataclass
 class ToolResult:
     tool: str
@@ -91,12 +96,17 @@ class ToolResult:
     insights: list[str] = field(default_factory=list)
     caveats: list[str] = field(default_factory=list)
     meta: dict = field(default_factory=dict)
+    subtitle: str | None = None                      # one-line "what this shows" under the card title
+    kpis: list[dict] = field(default_factory=list)   # headline numbers (see kpi()); UI only
+    observations: list[str] | None = None            # insights the KPI strip does not already say; None = all
 
     def to_dict(self, max_rows: int = 500) -> dict:
         def records(df: pd.DataFrame):
             return _jsonable(df.head(max_rows))
         data = {k: records(v) for k, v in self.data.items()} if isinstance(self.data, dict) else records(self.data)
-        return json_safe({"tool": self.tool, "title": self.title, "params": self.params, "data": data,
+        return json_safe({"tool": self.tool, "title": self.title, "subtitle": self.subtitle, "params": self.params,
+                          "data": data, "kpis": self.kpis,
+                          "observations": self.insights if self.observations is None else self.observations,
                           "charts": self.charts, "insights": self.insights, "caveats": self.caveats,
                           "meta": {"coverage": coverage(), **self.meta}})
 
@@ -106,10 +116,13 @@ class ToolResult:
         frames = self.data.items() if isinstance(self.data, dict) else [("data", self.data)]
         for name, df in frames:
             parts.append(f"## {name} ({len(df)} rows)\n" + df.head(max_rows).to_csv(index=False))
-        if self.insights:
-            parts.append("## insights\n" + "\n".join(f"- {i}" for i in self.insights))
+        insights = self.insights + [o for o in (self.observations or []) if o not in self.insights]
+        if insights:
+            parts.append("## insights\n" + "\n".join(f"- {i}" for i in insights))
         if self.caveats:
             parts.append("## caveats\n" + "\n".join(f"- {c}" for c in self.caveats))
+        if self.meta.get("chart_summary"):
+            parts.append("## chart shown to the user\n" + self.meta["chart_summary"])
         return "\n".join(parts)
 
 

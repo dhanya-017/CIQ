@@ -350,7 +350,7 @@ select patient_id, episode_number,
        least(max(covered_until) - 1, data_end()) as episode_end,
        least(max(covered_until) - 1, data_end()) - min(service_date) + 1 as duration_days,
        count(*) as n_admins,
-       shift_days(max(covered_until), p_grace_days) > data_end() as censored
+       max(shift_days(covered_until, p_grace_days)) > data_end() as censored
 from f group by patient_id, episode_number;
 
 -- ---------- 6. physician level ------------------------------------------------

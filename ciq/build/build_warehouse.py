@@ -62,6 +62,9 @@ def build_drug_map(con: duckdb.DuckDBPyConnection, ref: pd.DataFrame) -> pd.Data
 
     out = []
     for s in sigs.itertuples(index=False):
+        # pandas 3 string columns use NaN (truthy float) for nulls; normalise to None
+        s = s._replace(**{f: v if isinstance(v, str) else None
+                          for f, v in (("code", s.code), ("code_short_desc", s.code_short_desc))})
         hit = code_to_row.get(s.code) if s.code else None
         match_type = "HCPCS" if hit is not None else None
         if hit is None:

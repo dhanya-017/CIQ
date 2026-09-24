@@ -17,43 +17,66 @@
 <body>
 <div class="app" id="app">
   <aside class="sidebar" id="sidebar">
-    <div class="brand">
-      <img src="/static/assets/chryselys-mark.png" alt="Chryselys" class="brand-mark">
-      <div class="brand-text">
-        <div class="brand-name">CIQ</div>
-        <div class="brand-sub">Data Intelligence</div>
+    <div class="side-top">
+      <div class="brand">
+        <img src="/static/assets/chryselys-mark.png" alt="Chryselys" class="brand-mark">
+        <div class="brand-text">
+          <div class="brand-name">CIQ</div>
+          <div class="brand-sub">Data Intelligence</div>
+        </div>
       </div>
+      <button class="side-btn" id="btnSideToggle" type="button" aria-controls="sidebar" aria-expanded="true" aria-label="Collapse sidebar" data-tip="Collapse sidebar">
+        <svg viewBox="0 0 24 24" width="19" height="19" aria-hidden="true"><path d="M4 5h16v14H4zM9.5 5v14" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
     </div>
-    <button class="btn-new" id="btnNew">
-      <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
-      New analysis
-    </button>
-    <nav class="history">
-      <div class="nav-label">Recent analyses</div>
-      <ul id="historyList"></ul>
+    <nav class="side-nav" aria-label="Main">
+      <button class="side-item side-new" id="btnNew" type="button" data-tip="New analysis">
+        <span class="si-ic"><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M12 7v10M7 12h10" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+        <span class="si-label">New analysis</span>
+      </button>
+      <label class="side-item side-search" id="searchRow" data-tip="Search">
+        <span class="si-ic"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14zM20 20l-3.5-3.5" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+        <input type="search" class="si-input" id="historySearch" placeholder="Search analyses" aria-label="Search analyses" autocomplete="off">
+        <kbd class="si-kbd" id="searchKbd">Ctrl K</kbd>
+      </label>
+      <button class="side-item side-recents" id="btnRecents" type="button" data-tip="Recents" aria-label="Show recent analyses">
+        <span class="si-ic"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M12 7v5l3 2M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+      </button>
     </nav>
-    <div class="sidebar-foot">
-      <div class="foot-row"><span class="dot ok"></span><span id="footModel">Model</span></div>
-      <div class="foot-row muted" id="footData">Loading data…</div>
+    <div class="history">
+      <div class="nav-label">Recents</div>
+      <ul id="historyList"></ul>
+    </div>
+    <div class="side-account" id="footStatus" data-tip="Model">
+      <span class="acct-avatar"><img src="/static/assets/chryselys-mark.png" alt=""><span class="dot ok"></span></span>
+      <span class="acct-text">
+        <span class="acct-name" id="footModel">Model</span>
+        <span class="acct-sub" id="footData">Loading data…</span>
+      </span>
     </div>
   </aside>
 
   <main class="main">
     <header class="topbar">
-      <button class="icon-btn menu" id="btnMenu" aria-label="Toggle history">
+      <button class="icon-btn menu" id="btnMenu" aria-label="Collapse sidebar" title="Collapse sidebar (Ctrl+B)" aria-controls="sidebar" aria-expanded="true">
         <svg viewBox="0 0 24 24" width="20" height="20"><path d="M4 6h16M4 12h16M4 18h16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
       </button>
       <div class="topbar-title" id="convTitle">New analysis</div>
       <div class="topbar-right">
-        <label class="brand-select">
-          <span>Focus brand</span>
-          <select id="productSelect"></select>
-        </label>
-        <button class="btn-compare" id="btnCompare" type="button" title="Compare the focus brand with competitors side by side">
-          <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path d="M9 4v16M15 4v16M4 8h5M4 16h5M15 12h5" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/></svg>
-          Compare
-        </button>
-        <span class="chip" id="chipData" title="Data coverage">—</span>
+        <div class="context" role="group" aria-label="Analysis context">
+          <label class="brand-select">
+            <span>Focus brand</span>
+            <select id="productSelect"></select>
+          </label>
+          <button class="btn-compare" id="btnCompare" type="button" title="Compare the focus brand with competitors side by side">
+            <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M9 4v16M15 4v16M4 8h5M4 16h5M15 12h5" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/></svg>
+            Compare
+          </button>
+        </div>
+        <div class="scope" id="chipData" title="Data coverage">
+          <span class="scope-label">Market</span><span class="scope-val" id="scopeMarket">—</span>
+          <span class="scope-label">Claims</span><span class="scope-val" id="scopePeriod">—</span>
+        </div>
       </div>
     </header>
 
@@ -72,6 +95,7 @@
     </section>
 
     <footer class="composer-wrap">
+      <div class="followups" id="followups" hidden></div>
       <form class="composer" id="composer">
         <textarea id="input" rows="1" placeholder="Ask a question, e.g. “What is the Keytruda patient share in each line?”" autocomplete="off"></textarea>
         <button type="submit" class="send" id="btnSend" aria-label="Send">

@@ -13,7 +13,9 @@ def _load_dotenv(path: Path) -> None:
         line = line.strip()
         if line and not line.startswith("#") and "=" in line:
             k, v = line.split("=", 1)
-            os.environ.setdefault(k.strip(), v.strip().strip('"').strip("'"))
+            v = v.strip().strip('"').strip("'")
+            if v:   # an empty value means "unset"; boto3 treats AWS_PROFILE="" as a profile name
+                os.environ.setdefault(k.strip(), v)
 
 
 _load_dotenv(ROOT.parent / ".env")

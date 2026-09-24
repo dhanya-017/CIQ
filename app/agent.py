@@ -61,8 +61,12 @@ claims data, then explaining what the numbers mean for the brand.
   with the numbers that matter, then implications or suggested next questions when useful.
 - State material data limitations briefly (e.g. the short data window truncating a 24-month look-back),
   once, in plain language. Don't bury the answer in caveats.
+- If the user asks for a chart the standard tools don't draw (another chart type, breakdown or metric), use run_sql
+  with `chart`. If the chart call fails, read the reason, fix the SQL or chart spec and retry. When it succeeds, check
+  the "chart shown to the user" summary against the question and redraw if it doesn't answer it.
 - Never mention internal tool or function names to the user; suggest next steps as questions they can ask.
-- Use markdown: short paragraphs, bold key figures, bullet lists; at most H3 headings. Be concise."""
+- Use markdown: short paragraphs, bold key figures, bullet lists; at most H3 headings, in sentence case
+  (e.g. "KEYTRUDA share by HCP decile", not "KEYTRUDA HCP Market-Share Deciles"). Be concise."""
 
 
 def _check_input(tool, args) -> str | None:
@@ -80,6 +84,8 @@ def _check_input(tool, args) -> str | None:
             return f"{k} must be a string"
         if t == "boolean" and not isinstance(v, bool):
             return f"{k} must be a boolean"
+        if t == "object" and not isinstance(v, dict):
+            return f"{k} must be an object"
         if t == "array" and not (isinstance(v, list) and all(isinstance(x, str) for x in v)):
             return f"{k} must be a list of strings"
         if "enum" in spec and v not in spec["enum"]:

@@ -13,7 +13,7 @@ from typing import Callable
 
 from ciq import config
 from ciq.tools import analytics as a
-from ciq.tools import customize
+from ciq.tools import compare, customize
 from ciq.tools.base import ToolResult
 
 PRODUCT = {"type": "string", "description": f"Brand/product name (e.g. KEYTRUDA, OPDIVO, TAGRISSO, CARBOPLATIN) or molecule "
@@ -147,7 +147,20 @@ TOOLS: list[Tool] = [
     Tool("hcp_product_share_deciles", "Decile HCPs by product volume and show the product's market share within each "
          "decile (brand concentration among prescribers/administering physicians).",
          {"product": PRODUCT, "method": {"type": "string", "enum": ["volume", "hcp_count"]}}, a.hcp_product_share_deciles),
-    Tool("compare_products", "Side-by-side comparison of 2-4 brands/products: scorecard (patients, share, age, payer "
+    Tool("compare_segments", "Diagnostic comparison of two sides on the same market, period and definitions: "
+         "what is different (scorecard with differences), where (gap by HCP decile, payer, treatment mix, HCP "
+         "movement over time) and who (the HCPs behind the gap). Use for any two-way comparison: brand vs brand, HCP "
+         "cohort vs cohort (e.g. decile 1 vs decile 7, or a cohort vs all HCPs as a benchmark), time period vs time "
+         "period, patient cohort vs cohort. For 3-4 brands at once use compare_products.",
+         {"kind": {"type": "string", "enum": ["brands", "hcp", "time", "patient"], "description": "What is compared."},
+          "a": {"type": "string", "description": "Side A. brands: a product name. hcp: all | high_high | high_low | "
+                "nonusers | decile:1..10 | saved:<cohort id>. time: 'YYYY-MM..YYYY-MM' (e.g. 2026-01..2026-03). "
+                f"patient: {' | '.join(compare.PATIENT_COHORTS)}."},
+          "b": {"type": "string", "description": "Side B, same format as A. Use 'all' for a benchmark."},
+          "product": {**PRODUCT, "description": "Focus brand whose share is compared (hcp/time/patient kinds). "
+                      f"Defaults to {config.DEFAULT_PRODUCT}."}},
+         compare.compare_segments, required=("kind", "a", "b")),
+    Tool("compare_products", "Side-by-side comparison of 3-4 brands/products (for two, prefer compare_segments): scorecard (patients, share, age, payer "
          "mix, line share, combination use, source of business, persistency, prescriber base) plus overlaid charts. "
          "Use for any 'compare', 'vs', 'benchmark against competitors' question. The UI renders an interactive "
          "comparison panel where the user can swap brands.",

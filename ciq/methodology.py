@@ -200,6 +200,24 @@ METHODS: dict[str, dict] = {
                "Scorecard marks the leading brand on each metric."],
         reasoning="Benchmarking on a like-for-like basis.",
         source="several fn_* functions (see each section)", uses_lot=True),
+    "compare_segments": dict(
+        question="How do two sides differ, where is the gap, and who is behind it?",
+        steps=["Both sides use the same market (lung-cancer systemic therapy claims), period and definitions.",
+               "Brands: patients, share, volume, prescribers, share change, line share, combination use, 180-day "
+               "persistency and patient mix for each brand. HCP / patient / time cohorts: the claims are filtered to "
+               "each side, then the focus brand's share, volume, new patients and prescribers are measured on it.",
+               "Difference = B minus A: percentage points for shares, absolute and relative change for counts.",
+               "Where: brands - each brand's share of HCP volume by HCP decile (deciled on total lung volume) and "
+               "payer mix; cohorts - treatment mix (share of each side's patients on each product); time - HCP "
+               "movement (new, stopped, increased, decreased monthly brand volume).",
+               "Who: the HCPs behind the gap (e.g. where the competitor out-sells the brand), which can be exported "
+               "or saved as a cohort and compared again."],
+        definitions=["HCP cohorts are judged on volume share (brand administrations / all lung administrations of "
+                     "those HCPs); patient and time cohorts on patient share.",
+                     "Time periods of different length are compared per month for volumes."],
+        reasoning="Turns a side-by-side view into a diagnosis: quantify the gap, locate it, and hand the brand team "
+                  "a target list.",
+        source="ciq/tools/compare.py (fact_drug_event, dim_patient, lot_line, fn_hcp_product_share, fn_product_trend)"),
     "run_sql": dict(
         question="A custom question answered with an ad-hoc query.",
         steps=["The model wrote the read-only SQL below against the claims warehouse.",

@@ -171,6 +171,35 @@
     </footer>
   </main>
 </div>
+<div class="modal-back" id="compareModal" hidden>
+  <div class="modal cxm" role="dialog" aria-modal="true" aria-labelledby="cxTitle">
+    <header class="cm-head">
+      <div class="cm-head-text">
+        <span class="cm-kicker">Diagnostic compare</span>
+        <h2 id="cxTitle">Compare</h2>
+        <p>Same market, same period, same definitions. Then see what is different, where it comes from, and which HCPs are behind the gap.</p>
+      </div>
+      <button type="button" class="cm-x" id="cxClose" aria-label="Close"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+      <div class="cx-modes" id="cxModes" role="tablist"></div>
+    </header>
+    <div class="cm-body">
+      <div class="cx-presets" id="cxPresets"></div>
+      <div class="cx-sides" id="cxSides">
+        <div class="cx-side a"><span class="cx-tag">A</span><div class="cx-pick" id="cxA"></div></div>
+        <button type="button" class="cx-swap" id="cxSwap" title="Swap A and B" aria-label="Swap A and B"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M7 7h13l-4-4M17 17H4l4 4" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+        <div class="cx-side b"><span class="cx-tag">B</span><div class="cx-pick" id="cxB"></div></div>
+      </div>
+      <div class="cx-more" id="cxMore"></div>
+      <div class="cx-geo" id="cxGeo" hidden></div>
+      <div class="cx-context" id="cxContext"></div>
+      <div class="cm-actions">
+        <span class="cx-err" id="cxErr" role="alert"></span>
+        <button type="button" class="cm-btn" id="cxCancel">Cancel</button>
+        <button type="button" class="cm-btn primary" id="cxGo">Compare <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+      </div>
+    </div>
+  </div>
+</div>
 <div class="modal-back" id="connectModal" hidden>
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="cmTitle">
     <header class="cm-head">

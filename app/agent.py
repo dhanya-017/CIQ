@@ -35,7 +35,7 @@ TOOL_LABELS = {
     "persistency": "Estimating persistency", "hcp_market_concentration": "Decile-ing treating HCPs",
     "hcp_product_share_deciles": "Decile-ing HCPs by brand share", "run_sql": "Running a custom query",
     "compare_products": "Comparing brands side by side", "customize_chart": "Customising the chart",
-    "ask_user": "Asking you a question",
+    "ask_user": "Asking you a question", "compare_segments": "Comparing side A and side B",
 }
 
 
@@ -58,8 +58,13 @@ claims data, then explaining what the numbers mean for the brand.
 - Always ground numbers in tool results. Never invent figures. If no tool fits, use run_sql (DuckDB, read-only).
 - A user question may need several tools; call independent tools in parallel.
 - If the user doesn't name a brand, use the focus brand given in the message context.
-- For any comparison between brands ("compare", "vs", "against competitors"), call compare_products once with all
-  the brands. That renders an interactive side-by-side panel. If the user asks to compare with "competitors" without
+- For a two-way comparison (brand vs brand, HCP cohort vs cohort or benchmark, period vs period, patient cohort
+  vs cohort) call compare_segments: it returns what differs, where the gap comes from and the HCPs behind it. For 3-4
+  brands at once call compare_products (an interactive side-by-side panel).
+- When asked why two sides differ, work from the comparison's drivers (HCP deciles, payer and treatment mix, HCP
+  movement), dig deeper with other tools or run_sql if needed, and answer: what is different, where it is
+  concentrated, the most likely observable drivers, and what the brand team could do about it. Separate what the
+  data shows from hypotheses. If the user asks to compare with "competitors" without
   naming them, pick the 2-3 largest products in the same drug class as the focus brand (use list_products if needed).
 - Each tool result is shown to the user automatically as chart cards with the data table, so do not repeat
   every number or rebuild tables. Write the analyst's read-out: the answer first, then 2-5 key insights
@@ -287,6 +292,27 @@ class Agent:
                 _repair_history(conv)
             store.save(conv)
         yield {"type": "done", "conversation": conv.summary()}
+
+
+def add_panel_result(conv: store.Conversation, user_text: str, product: str | None, result: dict, llm_text: str,
+                     tool: str, tool_input: dict) -> None:
+    """Record an analysis run from the UI (not by the model) as a conversation exchange, so the agent sees it."""
+    if conv.title == "New analysis":
+        conv.title = user_text[:80]
+    content = [{"type": "text", "text": f"<context>Focus brand selected in the UI: {product}</context>\n\n"
+                                        f"[Run from the Compare panel] {user_text}"}]
+    if conv.pending:   # the user ran a comparison instead of answering the open question
+        pend, conv.pending = conv.pending, None
+        content = pend["results"] + [{"type": "tool_result", "tool_use_id": pend["ask_id"],
+                                      "content": "The user skipped this question."}] + content
+    api_index = len(conv.api_messages)
+    conv.api_messages.append({"role": "user", "content": content})
+    conv.api_messages.append({"role": "assistant", "content": [{"type": "text", "text":
+        "Comparison shown to the user as a card:\n\n" + llm_text}]})
+    conv.transcript.append({"role": "user", "text": user_text, "product": product, "api_index": api_index})
+    conv.transcript.append({"role": "assistant", "text": "", "thinking": "", "results": [result],
+                            "steps": [{"id": result["call_id"], "name": tool, "label": TOOL_LABELS.get(tool, tool),
+                                       "input": tool_input, "ok": True}]})
 
 
 def rewind_last_exchange(conv: store.Conversation) -> tuple[str, str | None]:

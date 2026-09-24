@@ -12,7 +12,7 @@ import pytest
 
 from ciq.tools.registry import TOOLS, anthropic_tools, run_tool
 
-CASES = [(t.name, {}) for t in TOOLS if t.name not in ("run_sql", "compare_products", "customize_chart", "ask_user")] + [
+CASES = [(t.name, {}) for t in TOOLS if t.name not in ("run_sql", "compare_products", "compare_segments", "customize_chart", "ask_user")] + [
     ("compare_products", {"products": ["KEYTRUDA", "opdivo", "TECENTRIQ"]}),
     ("compare_products", {"products": ["TAGRISSO", "ALECENSA"]}),
     ("run_sql", {"sql": "select product, count(*) n from fact_drug_event group by 1 order by n desc limit 5"}),

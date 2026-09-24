@@ -86,7 +86,8 @@ function bindUI() {
   input.addEventListener("input", autosize);
   $("#btnStop").addEventListener("click", () => state.controller && state.controller.abort());
   $("#btnNew").addEventListener("click", newConversation);
-  $("#btnCompare").addEventListener("click", startCompare);
+  $("#btnCompare").addEventListener("click", () => openCompare());
+  initCompare();
   $("#btnMenu").addEventListener("click", toggleSidebar);
   $("#btnSideToggle").addEventListener("click", toggleSidebar);
   $("#btnRecents").addEventListener("click", () => setSidebarCollapsed(false, true));
@@ -555,11 +556,6 @@ function defaultCompetitors(focus, n = 2) {
   return [...same, ...rest].slice(0, n).map((p) => p.product);
 }
 
-function startCompare() {
-  const focus = state.product;
-  const brands = [focus, ...defaultCompetitors(focus)];
-  submit(`Compare ${brands.join(" vs ")} side by side`);
-}
 
 function renderCompare(initial) {
   let res = initial;
@@ -894,6 +890,7 @@ function renderKpis(kpis) {
 
 function renderCard(res) {
   if (res.tool === "compare_products") return renderCompare(res);
+  if (res.tool === "compare_segments") return renderDiagnostic(res);
   const card = el("article", "card");
   const head = el("header", "card-head");
   const titles = el("div", "card-titles");
@@ -1053,6 +1050,409 @@ function methodPanel(res) {
   src.classList.add("wide");
   if (res.caveats?.length) section("Caveats", list(res.caveats)).classList.add("wide");
   return { button, panel };
+}
+
+// ---------------------------------------------------------------- compare: dialog (diagnostic compare)
+const CX_MODES = [
+  { id: "brands", label: "Brands" }, { id: "hcp", label: "HCP cohorts" }, { id: "time", label: "Time periods" },
+  { id: "patient", label: "Patient cohorts" }, { id: "geo", label: "Geographies", disabled: true },
+];
+const cx = { mode: "brands", opts: null, a: null, b: null, extra: [] };
+
+function initCompare() {
+  const modes = $("#cxModes");
+  for (const m of CX_MODES) {
+    const b = el("button", "cx-mode", m.label);
+    b.type = "button";
+    b.dataset.mode = m.id;
+    b.setAttribute("role", "tab");
+    if (m.disabled) { b.classList.add("soon"); b.appendChild(el("span", "cx-soon", "needs data")); }
+    b.addEventListener("click", () => setCompareMode(m.id));
+    modes.appendChild(b);
+  }
+  $("#cxClose").addEventListener("click", closeCompare);
+  $("#cxCancel").addEventListener("click", closeCompare);
+  $("#compareModal").addEventListener("click", (e) => { if (e.target.id === "compareModal") closeCompare(); });
+  $("#cxSwap").addEventListener("click", () => { [cx.a, cx.b] = [cx.b, cx.a]; paintCompare(); });
+  $("#cxGo").addEventListener("click", runCompare);
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("#compareModal").hidden) closeCompare(); });
+}
+
+async function openCompare(mode, preset) {
+  if (state.busy) return;
+  $("#compareModal").hidden = false;
+  $("#cxErr").textContent = "";
+  try {
+    if (!cx.opts || cx.opts.product !== state.product) {
+      cx.opts = await (await fetch(`/api/compare/options?product=${encodeURIComponent(state.product)}`)).json();
+    }
+  } catch (e) { $("#cxErr").textContent = "Could not load comparison options."; return; }
+  setCompareMode(mode || cx.mode, preset);
+}
+
+function closeCompare() { $("#compareModal").hidden = true; $("#btnCompare").focus(); }
+
+function cxDefaults(mode) {
+  const months = cx.opts.months.map((m) => m.id);
+  const split = Math.min(3, months.length - 1);
+  return {
+    brands: [state.product, defaultCompetitors(state.product, 1)[0]],
+    hcp: ["high_high", "high_low"],
+    time: [`${months[0]}..${months[split - 1]}`, `${months[split]}..${months[months.length - 1]}`],
+    patient: ["age_lt65", "age_65plus"],
+    geo: [null, null],
+  }[mode];
+}
+
+function cxPresets(mode) {
+  const p = state.product;
+  const months = cx.opts.months.map((m) => m.id);
+  const last = months[months.length - 1];
+  return {
+    brands: defaultCompetitors(p, 3).map((c) => ({ label: `${p} vs ${c}`, a: p, b: c })),
+    hcp: [{ label: "Decile 1 vs Decile 7", a: "decile:1", b: "decile:7" },
+      { label: `High vs low ${p} share HCPs`, a: "high_high", b: "high_low" },
+      { label: "Low-share HCPs vs all HCPs (benchmark)", a: "high_low", b: "all" },
+      ...cx.opts.hcp.filter((o) => o.saved).slice(-2).map((o) => ({ label: `${o.label} vs all HCPs`, a: o.id, b: "all" }))],
+    time: [{ label: `${cx.opts.months[0].label.split(" ")[0]}–${cx.opts.months[2].label} vs later`, ...(() => { const d = cxDefaults("time"); return { a: d[0], b: d[1] }; })() },
+      { label: "First vs last month", a: `${months[0]}..${months[0]}`, b: `${last}..${last}` },
+      { label: "Last 2 months vs prior 2", a: `${months[months.length - 4]}..${months[months.length - 3]}`, b: `${months[months.length - 2]}..${last}` }],
+    patient: [{ label: "Under 65 vs 65+", a: "age_lt65", b: "age_65plus" },
+      { label: "Medicare vs Commercial", a: "medicare", b: "commercial" },
+      { label: "Line 1 vs reached line 2+", a: "line1", b: "line2plus" }],
+    geo: [],
+  }[mode];
+}
+
+function setCompareMode(mode, preset) {
+  if (mode === "geo") {
+    $("#cxGeo").hidden = false;
+    $("#cxGeo").textContent = cx.opts.geography.reason + " Connect a geography source from Data sources to compare regions.";
+    return;
+  }
+  $("#cxGeo").hidden = true;
+  cx.mode = mode;
+  [cx.a, cx.b] = preset ? [preset.a, preset.b] : cxDefaults(mode);
+  cx.extra = [];
+  paintCompare();
+}
+
+function cxSelect(options, value, onChange) {
+  const sel = el("select", "cx-select");
+  for (const o of options) {
+    const opt = el("option", null, o.label);
+    opt.value = o.id;
+    if (o.detail) opt.title = o.detail;
+    sel.appendChild(opt);
+  }
+  sel.value = value;
+  sel.addEventListener("change", () => onChange(sel.value));
+  return sel;
+}
+
+function cxPicker(side) {
+  const box = el("div", "cx-fields");
+  const val = cx[side];
+  const set = (v) => { cx[side] = v; paintCompare(); };
+  if (cx.mode === "brands") {
+    const opts = (state.meta?.products || []).map((p) => ({ id: p.product, label: p.product, detail: `${p.drug_class} · ${p.patients} patients` }));
+    box.appendChild(cxSelect(opts, val, set));
+    const p = state.meta?.products.find((x) => x.product === val);
+    if (p) box.appendChild(el("span", "cx-hint", `${p.drug_class} · ${p.patients.toLocaleString()} patients`));
+  } else if (cx.mode === "hcp") {
+    const groups = [["Segments", cx.opts.hcp.filter((o) => !o.id.startsWith("decile:") && !o.saved)],
+      [`Deciles (${state.product} volume)`, cx.opts.hcp.filter((o) => o.id.startsWith("decile:"))],
+      ["Saved cohorts", cx.opts.hcp.filter((o) => o.saved)]];
+    const sel = el("select", "cx-select");
+    for (const [g, list] of groups) {
+      if (!list.length) continue;
+      const og = el("optgroup"); og.label = g;
+      for (const o of list) { const op = el("option", null, o.label); op.value = o.id; og.appendChild(op); }
+      sel.appendChild(og);
+    }
+    sel.value = val;
+    sel.addEventListener("change", () => set(sel.value));
+    box.appendChild(sel);
+    const o = cx.opts.hcp.find((x) => x.id === val);
+    if (o?.detail) box.appendChild(el("span", "cx-hint", o.detail));
+  } else if (cx.mode === "time") {
+    const [from, to] = val.split("..");
+    const row = el("div", "cx-range");
+    row.append(cxSelect(cx.opts.months, from, (v) => set(`${v}..${to < v ? v : to}`)), el("span", null, "to"),
+      cxSelect(cx.opts.months, to, (v) => set(`${from > v ? v : from}..${v}`)));
+    box.appendChild(row);
+  } else if (cx.mode === "patient") {
+    box.appendChild(cxSelect(cx.opts.patient, val, set));
+  }
+  return box;
+}
+
+function paintCompare() {
+  for (const b of $("#cxModes").children) b.classList.toggle("active", b.dataset.mode === cx.mode);
+  $("#cxA").replaceChildren(cxPicker("a"));
+  $("#cxB").replaceChildren(cxPicker("b"));
+  const presets = $("#cxPresets");
+  presets.replaceChildren(el("span", "cx-presets-label", "Quick compare"));
+  for (const pr of cxPresets(cx.mode)) {
+    const b = el("button", "cx-preset" + (pr.a === cx.a && pr.b === cx.b ? " on" : ""), pr.label);
+    b.type = "button";
+    b.addEventListener("click", () => { cx.a = pr.a; cx.b = pr.b; cx.extra = []; paintCompare(); });
+    presets.appendChild(b);
+  }
+  // brands: optional 3rd/4th brand switches to the side-by-side panel
+  const more = $("#cxMore");
+  more.replaceChildren();
+  if (cx.mode === "brands") {
+    cx.extra.forEach((v, i) => {
+      const row = el("div", "cx-extra");
+      row.append(el("span", "cx-tag c", String.fromCharCode(67 + i)),
+        cxSelect((state.meta?.products || []).map((p) => ({ id: p.product, label: p.product })), v, (nv) => { cx.extra[i] = nv; }));
+      const x = el("button", "cx-x", "×");
+      x.type = "button"; x.title = "Remove";
+      x.addEventListener("click", () => { cx.extra.splice(i, 1); paintCompare(); });
+      row.appendChild(x);
+      more.appendChild(row);
+    });
+    if (cx.extra.length < 2) {
+      const add = el("button", "cx-add", "+ Add brand (3–4 brands open the side-by-side panel)");
+      add.type = "button";
+      add.addEventListener("click", () => {
+        const used = [cx.a, cx.b, ...cx.extra];
+        const next = defaultCompetitors(state.product, 6).find((c) => !used.includes(c));
+        if (next) { cx.extra.push(next); paintCompare(); }
+      });
+      more.appendChild(add);
+    }
+  }
+  const c = cx.opts.context;
+  const ctx = $("#cxContext");
+  ctx.replaceChildren();
+  const item = (label, value) => { const s = el("span", "cx-ctx"); s.append(el("b", null, "✓ " + label), document.createTextNode(" " + value)); ctx.appendChild(s); };
+  item("Same market", c.market.replace(/\s*\(.*\)\s*/, " (NSCLC)"));
+  item("Same period", `${fmtMonth(c.start)} – ${fmtMonth(c.end)}`);
+  item("Same definitions", "metrics, lines of therapy, HCP attribution");
+  if (cx.mode !== "brands") item("Focus brand", state.product);
+  $("#cxErr").textContent = cx.a === cx.b ? "Pick two different sides." : "";
+  $("#cxGo").disabled = cx.a === cx.b;
+}
+
+async function runCompare() {
+  if (state.busy || cx.a === cx.b) return;
+  const multi = cx.mode === "brands" && cx.extra.length;
+  const payload = multi
+    ? { kind: "multi", products: [...new Set([cx.a, cx.b, ...cx.extra])], product: state.product, conversation_id: state.convId }
+    : { kind: cx.mode, a: cx.a, b: cx.b, product: state.product, conversation_id: state.convId };
+  $("#cxGo").disabled = true;
+  $("#cxErr").textContent = "";
+  try {
+    const r = await fetch("/api/compare", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.detail || r.statusText);
+    closeCompare();
+    showPanelResult(data);
+  } catch (e) {
+    $("#cxErr").textContent = String(e.message || e);
+  } finally {
+    $("#cxGo").disabled = false;
+  }
+}
+
+// a result run from a panel (not by the model) joins the conversation like a normal exchange
+function showPanelResult(data) {
+  setFollowups([]);
+  closeAsk();
+  $("#welcome").hidden = true;
+  state.convId = data.conversation.id;
+  history.replaceState(null, "", `/?c=${state.convId}`);
+  $("#convTitle").textContent = data.conversation.title;
+  addUserMsg(data.text, state.product);
+  const m = createAssistantMsg();
+  m.restore({ results: [data.result], text: "", steps: [{ label: "Compared side A and side B", input: {}, ok: true }] });
+  setFollowups([data.result.tool]);
+  loadHistory();
+  scrollDown(true);
+}
+
+// ---------------------------------------------------------------- compare: diagnostic card
+function renderDiagnostic(res) {
+  const c = res.meta.compare;
+  const [A, B] = [c.a, c.b];
+  const card = el("article", "card diag");
+  const head = el("header", "card-head");
+  const titles = el("div", "card-titles");
+  const t = el("h3", "card-title dg-title");
+  t.append(el("span", "dg-chip a", A), el("span", "dg-vs", "vs"), el("span", "dg-chip b", B));
+  titles.appendChild(t);
+  titles.appendChild(el("p", "card-sub", res.subtitle || ""));
+  const meta = el("div", "card-meta");
+  meta.append(el("span", "dg-ok", "✓ Same market"), el("span", "dg-ok", "✓ Same period"), el("span", "dg-ok", "✓ Same definitions"),
+    el("span", null, `Claims ${fmtPeriod(res.meta.coverage)}`), el("span", "card-tool", res.tool));
+  titles.appendChild(meta);
+  const actions = el("div", "card-actions");
+  const method = methodPanel(res);
+  if (method) actions.appendChild(method.button);
+  actions.appendChild(actionButton("download", "Download data (CSV)", () => downloadCSV(res)));
+  const expand = actionButton("expand", "Expand", () => {
+    const on = !card.classList.contains("expanded");
+    card.classList.toggle("expanded", on);
+    document.body.classList.toggle("has-expanded", on);
+    requestAnimationFrame(() => window.dispatchEvent(new Event("resize")));
+  });
+  card.addEventListener("collapse", () => expand.click());
+  actions.appendChild(expand);
+  head.append(titles, actions);
+  card.appendChild(head);
+  if (method) card.appendChild(method.panel);
+  const body = el("div", "card-body");
+  card.appendChild(body);
+
+  // 1. the duel: headline metric A | gap | B
+  const k = res.kpis || [];
+  if (k.length >= 3) {
+    const duel = el("div", "dg-duel");
+    const side = (cls, kp, label) => {
+      const d = el("div", `dg-side ${cls}` + (kp.lead ? " lead" : ""));
+      d.append(el("span", "dg-side-label", label), el("span", "dg-side-val", fmtKpi(kp)), el("span", "dg-side-metric", c.headline));
+      return d;
+    };
+    const gap = el("div", "dg-gap");
+    const leader = k[0].value >= k[1].value ? A : B;
+    gap.append(el("span", "dg-gap-val", `${k[2].value.toFixed(1)}pp`), el("span", "dg-gap-lab", `gap · ${leader} ahead`));
+    duel.append(side("a", k[0], A), gap, side("b", k[1], B));
+    body.appendChild(duel);
+  }
+
+  // 2. what is different
+  const sec = (title, sub) => { const s = el("section", "dg-sec"); const h = el("h4", null, title); s.appendChild(h); if (sub) s.appendChild(el("p", "dg-sec-sub", sub)); body.appendChild(s); return s; };
+  const score = Array.isArray(res.data) ? res.data : res.data.scorecard;
+  const key = new Set([...score].filter((r) => r.diff != null && (r.kind === "pct" || r.kind === "pp"))
+    .sort((x, y) => Math.abs(y.diff) - Math.abs(x.diff)).slice(0, 3).map((r) => r.metric));
+  const s1 = sec("What is different", "Difference = B minus A. Shares in percentage points; counts as change and %.");
+  const wrap = el("div", "table-wrap dg-table-wrap");
+  const tbl = el("table", "data dg-score");
+  const hr = el("tr");
+  for (const [txt, cls] of [["Metric", ""], [A, "a"], [B, "b"], ["Difference", ""]]) hr.appendChild(el("th", cls, txt));
+  const thead = el("thead"); thead.appendChild(hr);
+  const tb = el("tbody");
+  let section = null;
+  for (const r of score) {
+    if (r.section !== section) {
+      section = r.section;
+      const tr = el("tr", "section-row"); const td = el("td", null, section); td.colSpan = 4; tr.appendChild(td); tb.appendChild(tr);
+    }
+    const tr = el("tr", key.has(r.metric) ? "key" : "");
+    const m = el("td", "metric", r.metric);
+    if (key.has(r.metric)) m.appendChild(el("span", "dg-key", "key gap"));
+    const diff = el("td", "num");
+    const pill = el("span", "dg-diff" + (r.diff == null || Math.abs(r.diff) < 1e-9 ? "" : r.diff > 0 ? " b" : " a"), r.diff_fmt);
+    diff.appendChild(pill);
+    tr.append(m, el("td", "num", r.a_fmt), el("td", "num", r.b_fmt), diff);
+    tb.appendChild(tr);
+  }
+  tbl.append(thead, tb);
+  wrap.appendChild(tbl);
+  s1.appendChild(wrap);
+
+  // 3. where it is different
+  const s2 = sec("Where it is different");
+  if (res.observations?.length) {
+    const ul = el("ul", "dg-obs");
+    for (const o of res.observations) ul.appendChild(el("li", null, o));
+    s2.appendChild(ul);
+  }
+  const grid = el("div", "charts");
+  s2.appendChild(grid);
+  for (const spec of res.charts || []) {
+    const ch = el("div", "chart");
+    grid.appendChild(ch);
+    requestAnimationFrame(() => embed(ch, spec));
+  }
+
+  // 4. who: the opportunity list, export, save as cohort
+  const opp = c.opportunity;
+  if (opp?.count) {
+    const s3 = sec("Who is behind it");
+    const box = el("div", "dg-opp");
+    const head2 = el("div", "dg-opp-head");
+    const big = el("span", "dg-opp-n", opp.count.toLocaleString());
+    const txt = el("span", "dg-opp-text");
+    txt.append(el("b", null, opp.label), el("span", null, opp.concentration != null
+      ? `The top 20% of them account for ${fmtPct(opp.concentration)} of the gap.` : "Ready to export or save as a cohort."));
+    head2.append(big, txt);
+    const btns = el("div", "dg-opp-actions");
+    const frame = res.data.opportunity_hcps;
+    const tableBox = el("div", "dg-opp-table");
+    tableBox.hidden = true;
+    if (frame?.length) {
+      const view = el("button", "cm-btn", "View HCPs");
+      view.type = "button";
+      view.addEventListener("click", () => {
+        tableBox.hidden = !tableBox.hidden;
+        view.textContent = tableBox.hidden ? "View HCPs" : "Hide HCPs";
+        if (!tableBox.firstChild) { const w = el("div", "table-wrap"); w.appendChild(renderTable(frame.slice(0, 200))); tableBox.appendChild(w); }
+      });
+      const exp = el("button", "cm-btn", "Export CSV");
+      exp.type = "button";
+      exp.addEventListener("click", () => downloadCSV({ tool: "opportunity_hcps", data: { hcps: frame } }));
+      btns.append(view, exp);
+    }
+    const save = el("button", "cm-btn primary", "Save as cohort");
+    save.type = "button";
+    const form = el("form", "dg-save");
+    form.hidden = true;
+    const name = el("input");
+    name.value = opp.label;
+    name.setAttribute("aria-label", "Cohort name");
+    const ok = el("button", "cm-btn primary", "Save");
+    ok.type = "submit";
+    form.append(name, ok);
+    save.addEventListener("click", () => { form.hidden = false; save.hidden = true; name.select(); });
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      ok.disabled = true;
+      try {
+        const r = await fetch("/api/cohorts", { method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name: name.value, hcp_ids: opp.hcp_ids, definition: `${opp.label} (${A} vs ${B})`, product: opp.product }) });
+        const saved = await r.json();
+        if (!r.ok) throw new Error(saved.detail || r.statusText);
+        cx.opts = null;   // refresh the dialog's cohort list
+        form.replaceChildren(el("span", "dg-saved", `✓ Saved “${saved.name}” (${saved.size.toLocaleString()} HCPs)`));
+        const cmp = el("button", "cm-btn", "Compare this cohort vs all HCPs");
+        cmp.type = "button";
+        cmp.addEventListener("click", async () => {
+          await openCompare("hcp", { a: `saved:${saved.id}`, b: "all" });
+          runCompare();
+        });
+        form.appendChild(cmp);
+      } catch (err) { ok.disabled = false; name.setCustomValidity(String(err.message || err)); name.reportValidity(); }
+    });
+    btns.append(save);
+    box.append(head2, btns, form, tableBox);
+    s3.appendChild(box);
+  }
+
+  // 5. why
+  const why = el("div", "dg-why");
+  const ask = el("button", "dg-why-btn");
+  ask.type = "button";
+  ask.innerHTML = svgIcon("M12 3l1.9 5.8H20l-4.9 3.6 1.9 5.8-5-3.6-5 3.6 1.9-5.8L4 8.8h6.1z");
+  ask.appendChild(document.createTextNode("Why are they different?"));
+  ask.addEventListener("click", () => submit(`Why are ${A} and ${B} different? Explain what drives the gap in this comparison ` +
+    `(what, where, the likely drivers) and what the ${c.product || A} team could do about it.`));
+  why.append(ask, el("span", "dg-why-hint", "CIQ digs into the drivers above and explains the gap."));
+  if (c.kind === "hcp" && B !== "All HCPs") {
+    const bench = el("button", "cm-btn", `Compare ${A} vs all HCPs`);
+    bench.type = "button";
+    bench.addEventListener("click", async () => { await openCompare("hcp", { a: res.params.a, b: "all" }); runCompare(); });
+    why.appendChild(bench);
+  }
+  body.appendChild(why);
+
+  const det = el("details", "dg-data");
+  det.appendChild(el("summary", null, "All data tables"));
+  det.addEventListener("toggle", () => { if (det.open && det.children.length === 1) det.appendChild(renderData(res.data)); }, { once: true });
+  body.appendChild(det);
+  return card;
 }
 
 // ---------------------------------------------------------------- account (profile row + menu, like Claude)
@@ -1253,6 +1653,8 @@ function showConnectForm(pl) {
 
 // ---------------------------------------------------------------- follow-up suggestions
 const FOLLOWUPS = {
+  compare_segments: ["Why are they different?", "Which HCPs should we target to close the gap?",
+    "Compare {p} with its top competitor"],
   hcp_product_share_deciles: ["Which HCP deciles have the biggest {p} share opportunity?",
     "Is the market more concentrated across HCPs after first {p}?", "Compare {p} with its top competitors"],
   hcp_market_concentration: ["Decile the HCPs based on {p} market share", "What is the source of business for {p}?",

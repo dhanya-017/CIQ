@@ -5,6 +5,9 @@ Run:  python -m uvicorn app.server:app --port 8000     then open http://localhos
 from __future__ import annotations
 
 import json
+import uuid
+
+import pandas as pd
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse, StreamingResponse
@@ -13,7 +16,8 @@ from pydantic import BaseModel, Field
 from starlette.concurrency import run_in_threadpool
 
 from app import settings, store
-from app.agent import Agent, rewind_last_exchange
+from app.agent import Agent, add_panel_result, rewind_last_exchange
+from ciq.tools import compare
 from ciq import methodology
 from ciq import config as ciq_config
 from ciq.tools.base import coverage, json_safe, query, resolve_product
@@ -59,6 +63,22 @@ SUGGESTIONS = [
         "Decile the HCPs based on {p} market share",
     ]),
 ]
+
+
+class CompareRequest(BaseModel):
+    kind: str = Field(pattern="^(brands|hcp|time|patient|multi)$")
+    a: str = ""
+    b: str = ""
+    products: list[str] = []          # kind "multi": 3-4 brands side by side
+    product: str | None = None
+    conversation_id: str | None = None
+
+
+class CohortRequest(BaseModel):
+    name: str = Field(min_length=1, max_length=80)
+    hcp_ids: list[str] = Field(min_length=1, max_length=20000)
+    definition: str = ""
+    product: str | None = None
 
 
 class ChatRequest(BaseModel):
@@ -135,6 +155,68 @@ async def chat(req: ChatRequest):
 
     return StreamingResponse(events(), media_type="text/event-stream",
                              headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+
+
+@app.get("/api/compare/options")
+async def compare_options(product: str | None = None):
+    def build():
+        p = resolve_product(product)
+        cov = coverage()
+        months = pd.period_range(cov["data_start"], cov["data_end"], freq="M")
+        return {"product": p, "context": {"market": ciq_config.INDICATION_NAME, "start": cov["data_start"],
+                                          "end": cov["data_end"], "patients": cov["n_patients"]},
+                "hcp": compare.hcp_cohort_options(p),
+                "patient": [{"id": k, "label": v[0]} for k, v in compare.PATIENT_COHORTS.items()],
+                "months": [{"id": str(m), "label": m.strftime("%b %Y")} for m in months],
+                "geography": {"available": False, "reason": "Needs a geography source (HCP address or patient ZIP3). "
+                              "The IQVIA extract has ZIP codes on pharmacy claims only (about 10% of patients)."}}
+    try:
+        return await run_in_threadpool(build)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
+@app.post("/api/compare")
+async def run_compare(req: CompareRequest):
+    """Run a comparison from the Compare panel and record it in the conversation, so follow-up questions
+    ("why are they different?") have the full result in context."""
+    conv = (store.load(req.conversation_id) if req.conversation_id else None) or store.new()
+
+    def build():
+        if req.kind == "multi":
+            res = run_tool("compare_products", {"products": req.products})
+            label = " vs ".join(res.params["products"])
+        else:
+            res = compare.compare_segments(req.kind, req.a, req.b, req.product)
+            label = res.title
+        return res, label
+    try:
+        res, label = await run_in_threadpool(build)
+    except (ValueError, KeyError) as e:
+        raise HTTPException(400, str(e))
+    result = await run_in_threadpool(res.to_dict, 500)
+    call_id = f"compare_{uuid.uuid4().hex[:10]}"
+    result["call_id"] = call_id
+    focus = res.params.get("product") or res.params.get("a") or req.product
+    text = f"Compare {label}" + (f" (focus brand {focus})" if req.kind in ("hcp", "time", "patient") else "")
+    add_panel_result(conv, text, focus, result, res.to_llm_text(), "compare_segments" if req.kind != "multi"
+                     else "compare_products", req.model_dump(exclude={"conversation_id"}))
+    await run_in_threadpool(store.save, conv)
+    return json_safe({"conversation": conv.summary(), "text": text, "result": result})
+
+
+@app.get("/api/cohorts")
+async def cohorts():
+    return [{k: v for k, v in c.items() if k != "hcp_ids"} | {"size": len(c["hcp_ids"])} for c in compare.list_cohorts()]
+
+
+@app.post("/api/cohorts")
+async def create_cohort(req: CohortRequest):
+    try:
+        c = await run_in_threadpool(compare.save_cohort, req.name, req.hcp_ids, req.definition, req.product)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    return {k: v for k, v in c.items() if k != "hcp_ids"} | {"size": len(c["hcp_ids"])}
 
 
 def _sse(ev: dict) -> str:

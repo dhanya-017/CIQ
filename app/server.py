@@ -13,7 +13,7 @@ from pydantic import BaseModel, Field
 from starlette.concurrency import run_in_threadpool
 
 from app import settings, store
-from app.agent import Agent
+from app.agent import Agent, rewind_last_exchange
 from ciq import config as ciq_config
 from ciq.tools.base import coverage, json_safe, query, resolve_product
 from ciq.tools.registry import TOOLS, run_tool
@@ -61,9 +61,10 @@ SUGGESTIONS = [
 
 
 class ChatRequest(BaseModel):
-    message: str = Field(min_length=1, max_length=4000)
+    message: str = Field(default="", max_length=4000)
     conversation_id: str | None = None
     product: str | None = None
+    retry: bool = False   # regenerate the reply to the conversation's last message (message is ignored)
 
 
 # ---------------------------------------------------------------------------
@@ -107,6 +108,17 @@ async def overview(product: str | None = None):
 @app.post("/api/chat")
 async def chat(req: ChatRequest):
     conv = (store.load(req.conversation_id) if req.conversation_id else None) or store.new()
+    message = req.message.strip()
+    if req.retry:
+        if not req.conversation_id or conv.id != req.conversation_id:
+            raise HTTPException(404, "conversation not found")
+        try:
+            message, last_product = rewind_last_exchange(conv)
+        except ValueError as e:
+            raise HTTPException(409, str(e))
+        req.product = req.product or last_product
+    elif not message:
+        raise HTTPException(422, "message is empty")
     product = None
     if req.product:
         try:
@@ -116,7 +128,7 @@ async def chat(req: ChatRequest):
 
     async def events():
         yield _sse({"type": "conversation", "id": conv.id})
-        async for ev in agent().run(conv, req.message, product):
+        async for ev in agent().run(conv, message, product):
             yield _sse(ev)
 
     return StreamingResponse(events(), media_type="text/event-stream",

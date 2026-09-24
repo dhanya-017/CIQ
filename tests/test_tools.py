@@ -213,6 +213,30 @@ def test_ask_user_validation():
         run_tool("ask_user", {"questions": []})
 
 
+def test_rewind_last_exchange():
+    from app.agent import rewind_last_exchange
+    from app.store import Conversation
+    ask = {"ask_id": "toolu_q", "ask": {"questions": []}, "results": []}
+    conv = Conversation(id="t", api_messages=[
+        {"role": "user", "content": [{"type": "text", "text": "q1"}]},
+        {"role": "assistant", "content": [{"type": "tool_use", "id": "toolu_q", "name": "ask_user", "input": {}}]},
+        {"role": "user", "content": [{"type": "tool_result", "tool_use_id": "toolu_q", "content": "Age"}]},
+        {"role": "assistant", "content": [{"type": "text", "text": "answer"}]}],
+        transcript=[{"role": "user", "text": "q1", "product": "KEYTRUDA", "api_index": 0},
+                    {"role": "assistant", "ask": {"id": "toolu_q"}},
+                    {"role": "user", "text": "Age", "product": "KEYTRUDA", "answer_to": "toolu_q", "api_index": 2,
+                     "pending_before": ask},
+                    {"role": "assistant", "text": "answer"}])
+    # retrying the answer re-opens the question and keeps the question turn
+    assert rewind_last_exchange(conv) == ("Age", "KEYTRUDA")
+    assert len(conv.api_messages) == 2 and len(conv.transcript) == 2 and conv.pending == ask
+    # retrying again goes back to the original question
+    assert rewind_last_exchange(conv)[0] == "q1"
+    assert conv.api_messages == [] and conv.transcript == [] and conv.pending is None
+    with pytest.raises(ValueError, match="nothing to retry"):
+        rewind_last_exchange(conv)
+
+
 if __name__ == "__main__":
     for n, a in CASES:
         r = run_tool(n, a)

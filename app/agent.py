@@ -168,16 +168,18 @@ class Agent:
         conv.product = focus
         if conv.title == "New analysis":
             conv.title = user_text.strip().replace("\n", " ")[:80]
+        api_index = len(conv.api_messages)   # where this exchange starts, so it can be rewound for a retry
         if conv.pending:   # this message answers the clarifying question the last turn ended on
             pend, conv.pending = conv.pending, None
             conv.api_messages.append({"role": "user", "content": pend["results"] + [
                 {"type": "tool_result", "tool_use_id": pend["ask_id"],
                  "content": f"The user answered (focus brand in the UI: {focus}):\n{user_text}"}]})
-            conv.transcript.append({"role": "user", "text": user_text, "product": focus, "answer_to": pend["ask_id"]})
+            conv.transcript.append({"role": "user", "text": user_text, "product": focus, "answer_to": pend["ask_id"],
+                                    "api_index": api_index, "pending_before": pend})
         else:
             conv.api_messages.append({"role": "user", "content": [
                 {"type": "text", "text": f"<context>Focus brand selected in the UI: {focus}</context>\n\n{user_text}"}]})
-            conv.transcript.append({"role": "user", "text": user_text, "product": focus})
+            conv.transcript.append({"role": "user", "text": user_text, "product": focus, "api_index": api_index})
         turn = {"role": "assistant", "steps": [], "results": [], "text": "", "thinking": ""}
         conv.transcript.append(turn)
 
@@ -276,6 +278,26 @@ class Agent:
                 _repair_history(conv)
             store.save(conv)
         yield {"type": "done", "conversation": conv.summary()}
+
+
+def rewind_last_exchange(conv: store.Conversation) -> tuple[str, str | None]:
+    """Drop the last user message and everything after it (for "retry"); returns that message and its brand."""
+    idx = max((i for i, t in enumerate(conv.transcript) if t.get("role") == "user"), default=None)
+    if idx is None:
+        raise ValueError("there is nothing to retry in this conversation")
+    turn = conv.transcript[idx]
+    api_index = turn.get("api_index")
+    if api_index is None:   # conversations saved before retry existed
+        if turn.get("answer_to"):
+            raise ValueError("this reply was saved by an older version and can't be retried")
+        api_index = max((i for i, m in enumerate(conv.api_messages) if m["role"] == "user"
+                         and any(b.get("type") == "text" for b in m["content"])), default=None)
+        if api_index is None:
+            raise ValueError("there is nothing to retry in this conversation")
+    conv.api_messages = conv.api_messages[:api_index]
+    conv.transcript = conv.transcript[:idx]
+    conv.pending = turn.get("pending_before")   # an answer being retried re-opens its question
+    return turn["text"], turn.get("product")
 
 
 def _repair_history(conv: store.Conversation) -> None:

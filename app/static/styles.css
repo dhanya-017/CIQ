@@ -326,6 +326,12 @@ table.data tr:hover td { background: var(--navy-50); }
 .answer th, .answer td { border: 1px solid var(--border); padding: 5px 9px; }
 .answer.streaming::after { content: "▍"; color: var(--gold-500); animation: blink 1s steps(2) infinite; }
 @keyframes blink { 50% { opacity: 0; } }
+/* copy / retry row under each reply (retry only on the latest, and not while working) */
+.msg-actions { display: flex; gap: 2px; margin-top: 6px; }
+.ma-btn { width: 30px; height: 30px; display: grid; place-items: center; border: 0; border-radius: 7px; background: none; color: var(--c-meta); }
+.ma-btn:hover { background: var(--navy-50); color: var(--c-analytic); }
+.ma-btn.done { color: var(--ok); }
+.messages > .msg.assistant:not(:last-child) .ma-retry, .app.busy .ma-retry { display: none; }
 .error-box { background: #fdecea; color: var(--err); border: 1px solid #f5c6c2; border-radius: 10px; padding: 10px 14px; margin-top: 10px; font-size: 13px; }
 
 /* ---------- brand comparison ---------- */

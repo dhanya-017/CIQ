@@ -23,11 +23,22 @@ function fmtKpi(k) {
   }
 }
 const svgIcon = (d) => `<svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path d="${d}" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+// Only ~~double tildes~~ strike through. Analysts write "~29%" for "approximately"; marked's default GFM rule
+// also accepts single tildes, which struck out everything between two approximate figures.
+marked.use({ tokenizer: { del(src) {
+  const m = /^~~(?=[^\s~])([\s\S]*?[^\s~])~~(?!~)/.exec(src);
+  if (m) return { type: "del", raw: m[0], text: m[1], tokens: this.lexer.inlineTokens(m[1]) };
+  // undefined (not false) = no strikethrough here; false would fall back to the single-tilde rule
+} } });
+
 const ICONS = {
   download: "M12 4v11M7 10l5 5 5-5M5 20h14",
   image: "M4 5h16v14H4zM4 16l5-5 4 4 3-3 4 4",
   expand: "M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5",
   collapse: "M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5",
+  copy: "M9 9h11v11H9zM5 15H4V4h11v1",
+  check: "M5 12.5l4.5 4.5L19 7.5",
+  retry: "M20 11a8 8 0 1 0-2.4 5.7M20 4v7h-7",
 };
 
 const state = { meta: null, product: null, convId: null, busy: false, controller: null, history: [], ask: null };
@@ -296,14 +307,26 @@ async function submit(preset) {
   document.querySelectorAll(".ask-record.waiting").forEach((r) => r.classList.remove("waiting"));
   $("#welcome").hidden = true;
   addUserMsg(sent, state.product, isAnswer);
-  const m = createAssistantMsg();
+  await streamChat({ message: sent, conversation_id: state.convId, product: state.product }, createAssistantMsg());
+}
+
+// Regenerate the latest reply: the server rewinds the conversation to the last user message and runs it again.
+async function retryLast(root) {
+  if (state.busy || !state.convId) return;
+  root.remove();
+  closeAsk();
+  setFollowups([]);
+  await streamChat({ retry: true, conversation_id: state.convId }, createAssistantMsg());
+}
+
+async function streamChat(payload, m) {
   setBusy(true);
   state.controller = new AbortController();
   try {
     const res = await fetch("/api/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message: sent, conversation_id: state.convId, product: state.product }),
+      body: JSON.stringify(payload),
       signal: state.controller.signal,
     });
     if (!res.ok) throw new Error((await res.json()).detail || res.statusText);
@@ -352,6 +375,7 @@ function handleEvent(ev, m) {
 
 function setBusy(b) {
   state.busy = b;
+  $("#app").classList.toggle("busy", b);
   $("#btnSend").hidden = b;
   $("#btnStop").hidden = !b;
 }
@@ -399,7 +423,19 @@ function createAssistantMsg() {
   ahead.append(el("span", "answer-label", "CIQ read-out"), el("span", "answer-sub", "Interpretation of the analyses above, written by the model"));
   const answer = el("div", "answer streaming");
   answerBox.append(ahead, answer);
-  body.append(trace, cards, answerBox);
+  const actions = el("div", "msg-actions");
+  actions.hidden = true;
+  const copyBtn = msgAction("copy", "Copy", async () => {
+    await copyText(md.trim());
+    copyBtn.innerHTML = svgIcon(ICONS.check);
+    copyBtn.classList.add("done");
+    copyBtn.title = "Copied";
+    setTimeout(() => { copyBtn.innerHTML = svgIcon(ICONS.copy); copyBtn.classList.remove("done"); copyBtn.title = "Copy"; }, 1500);
+  });
+  const retryBtn = msgAction("retry", "Retry", () => retryLast(root));
+  retryBtn.classList.add("ma-retry");
+  actions.append(copyBtn, retryBtn);
+  body.append(trace, cards, answerBox, actions);
   const tools = [];
   $("#messages").appendChild(root);
   scrollDown(true);
@@ -464,6 +500,8 @@ function createAssistantMsg() {
     finish() {
       if (raf) { cancelAnimationFrame(raf); render(); }
       answer.classList.remove("streaming");
+      actions.hidden = false;
+      copyBtn.hidden = !md.trim();
       trace.classList.remove("live");
       root.classList.remove("working");
       const n = steps.children.length;
@@ -686,6 +724,30 @@ function renderScorecard(res) {
   t.append(thead, tb);
   wrap.appendChild(t);
   return wrap;
+}
+
+function msgAction(icon, label, onClick) {
+  const b = el("button", "ma-btn");
+  b.type = "button";
+  b.title = label;
+  b.setAttribute("aria-label", label);
+  b.innerHTML = svgIcon(ICONS[icon]);
+  b.addEventListener("click", onClick);
+  return b;
+}
+
+async function copyText(text) {
+  try {
+    await navigator.clipboard.writeText(text);
+  } catch (e) {   // clipboard API unavailable (e.g. non-secure origin): fall back to a hidden textarea
+    const t = el("textarea");
+    t.value = text;
+    t.style.position = "fixed"; t.style.opacity = "0";
+    document.body.appendChild(t);
+    t.select();
+    document.execCommand("copy");
+    t.remove();
+  }
 }
 
 // ---------------------------------------------------------------- clarifying questions (ask_user)

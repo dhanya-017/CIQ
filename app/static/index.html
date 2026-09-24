@@ -47,12 +47,35 @@
       <div class="nav-label">Recents</div>
       <ul id="historyList"></ul>
     </div>
-    <div class="side-account" id="footStatus" data-tip="Model">
-      <span class="acct-avatar"><img src="/static/assets/chryselys-mark.png" alt=""><span class="dot ok"></span></span>
-      <span class="acct-text">
-        <span class="acct-name" id="footModel">Model</span>
-        <span class="acct-sub" id="footData">Loading data…</span>
-      </span>
+    <div class="account">
+      <div class="acct-menu" id="acctMenu" role="menu" hidden>
+        <div class="am-who">
+          <span class="am-name" id="amName"></span>
+          <span class="am-email" id="amEmail"></span>
+        </div>
+        <div class="am-model" role="presentation">
+          <span class="dot ok"></span>
+          <span><span class="am-model-name" id="footModel">Model</span><span class="am-model-sub" id="footData">Loading data…</span></span>
+        </div>
+        <button type="button" class="am-item" role="menuitem" id="amSources"><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M4 7c0-1.7 3.6-3 8-3s8 1.3 8 3-3.6 3-8 3-8-1.3-8-3zM4 7v10c0 1.7 3.6 3 8 3s8-1.3 8-3V7M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg> Data sources</button>
+        <button type="button" class="am-item" role="menuitem" id="amKeys"><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M3 7h18v10H3zM7 11h.01M11 11h.01M15 11h.01M8 14h8" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg> Keyboard shortcuts</button>
+        <div class="am-keys" id="amKeyList" hidden>
+          <span><kbd class="mk">K</kbd> Search analyses</span>
+          <span><kbd class="mk">B</kbd> Collapse sidebar</span>
+          <span><kbd>1</kbd>–<kbd>4</kbd> Answer a question</span>
+          <span><kbd>Esc</kbd> Close panels</span>
+        </div>
+        <div class="am-sep"></div>
+        <span class="am-foot">Signed-in accounts arrive with SSO; this profile comes from <code>.env</code>.</span>
+      </div>
+      <button type="button" class="side-account" id="footStatus" aria-haspopup="menu" aria-expanded="false" data-tip="Account">
+        <span class="acct-avatar" id="acctAvatar">·</span>
+        <span class="acct-text">
+          <span class="acct-name" id="acctName">…</span>
+          <span class="acct-sub" id="acctRole"></span>
+        </span>
+        <span class="acct-chev"><svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path d="M8 10l4-4 4 4M8 14l4 4 4-4" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+      </button>
     </div>
   </aside>
 
@@ -73,9 +96,35 @@
             Compare
           </button>
         </div>
-        <div class="scope" id="chipData" title="Data coverage">
-          <span class="scope-label">Market</span><span class="scope-val" id="scopeMarket">—</span>
-          <span class="scope-label">Claims</span><span class="scope-val" id="scopePeriod">—</span>
+        <div class="sources" id="sources">
+          <button type="button" class="src-pill" id="srcPill" aria-haspopup="dialog" aria-expanded="false" aria-controls="srcPop">
+            <span class="src-dot" aria-hidden="true"></span>
+            <span class="src-name">IQVIA Claims</span>
+            <span class="src-count" id="srcCount">1 source</span>
+            <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+          <button type="button" class="src-add" id="srcAdd" title="Connect a data source" aria-label="Connect a data source"><svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+          <div class="src-pop" id="srcPop" role="dialog" aria-label="Data sources" hidden>
+            <div class="sp-head"><span>Data sources</span><span class="sp-sub">What CIQ can analyse</span></div>
+            <div class="sp-group">Connected</div>
+            <div class="sp-item connected">
+              <span class="sp-logo iqvia">IQ</span>
+              <span class="sp-text">
+                <span class="sp-name">IQVIA Claims <span class="sp-status ok">Connected</span></span>
+                <span class="sp-desc">Medical (MX) &amp; pharmacy (RX) claims</span>
+                <span class="sp-facts" id="srcFacts">Loading…</span>
+              </span>
+            </div>
+            <div class="sp-group">Available to connect</div>
+            <div id="srcAvailable"></div>
+            <button type="button" class="sp-connect" id="srcConnectMore">
+              <span class="sp-connect-label"><svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg> Connect a data source</span>
+              <span class="sp-logos" aria-hidden="true">
+                <img src="/static/assets/logos/snowflake.svg" alt=""><img src="/static/assets/logos/databricks.svg" alt="">
+                <img src="/static/assets/logos/aws.svg" alt="" class="wide"><img src="/static/assets/logos/azure.svg" alt=""><img src="/static/assets/logos/bigquery.svg" alt="">
+              </span>
+            </button>
+          </div>
         </div>
       </div>
     </header>
@@ -121,6 +170,51 @@
       <div class="composer-hint">Answers are generated from claims data by <span id="hintModel">Claude</span> on Amazon Bedrock. Check the Data tab of each card before sharing figures.</div>
     </footer>
   </main>
+</div>
+<div class="modal-back" id="connectModal" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="cmTitle">
+    <header class="cm-head">
+      <div class="cm-head-text">
+        <span class="cm-kicker">Enterprise connectors <span class="cm-badge">Preview</span></span>
+        <h2 id="cmTitle">Connect a data source</h2>
+        <p>Bring payer, promotional/CRM and other commercial data next to IQVIA claims, so CIQ can analyse them together.</p>
+      </div>
+      <button type="button" class="cm-x" id="cmClose" aria-label="Close"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+      <ol class="cm-steps" id="cmSteps">
+        <li class="active"><span>1</span>Data</li><li><span>2</span>Platform</li><li><span>3</span>Details</li>
+      </ol>
+    </header>
+    <div class="cm-body">
+      <div class="cm-step" id="cmStep1">
+        <h3>What kind of data?</h3>
+        <div class="cm-kinds" id="cmKinds"></div>
+        <h3>Where does it live?</h3>
+        <div class="cm-platforms" id="cmPlatforms"></div>
+      </div>
+      <form class="cm-step" id="cmStep2" hidden autocomplete="off">
+        <button type="button" class="cm-back" id="cmBack"><svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M15 18l-6-6 6-6" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg> All platforms</button>
+        <div class="cm-form-head">
+          <span class="cm-form-logo" id="cmFormLogo"></span>
+          <span><span class="cm-form-title" id="cmFormTitle"></span><span class="cm-form-sub" id="cmFormSub"></span></span>
+        </div>
+        <div class="cm-form-grid">
+          <div class="cm-fields" id="cmFields"></div>
+          <aside class="cm-guide">
+            <h4>Recommended setup</h4>
+            <ul>
+              <li>Use a read-only role or service principal scoped to the tables CIQ needs.</li>
+              <li>Pick the join key that links the table to IQVIA claims (HCP, payer plan, patient token or product).</li>
+              <li>Prefer tokenised patient ids; CIQ never needs direct identifiers.</li>
+            </ul>
+          </aside>
+        </div>
+        <div class="cm-actions">
+          <button type="button" class="cm-btn" disabled>Test connection</button>
+          <button type="submit" class="cm-btn primary" disabled>Connect</button>
+        </div>
+      </form>
+    </div>
+  </div>
 </div>
 <script src="/static/app.js"></script>
 </body>

@@ -310,6 +310,7 @@ def build() -> None:
     con.execute("create table ref_build_params as select * from (values "
                 f"('lot_regimen_window_days', '{config.LOT_REGIMEN_WINDOW_DAYS}'),"
                 f"('lot_gap_days', '{config.LOT_GAP_DAYS}'),"
+                f"('lot_regimen_window_cycles', '{config.LOT_REGIMEN_WINDOW_CYCLES}'),"
                 f"('clean_start_days', '{config.CLEAN_START_DAYS}'),"
                 f"('indication_dx_prefix', '{config.INDICATION_DX_PREFIX}'),"
                 f"('default_product', '{config.DEFAULT_PRODUCT}')"

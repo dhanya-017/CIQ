@@ -39,6 +39,7 @@ const ICONS = {
   copy: "M9 9h11v11H9zM5 15H4V4h11v1",
   check: "M5 12.5l4.5 4.5L19 7.5",
   retry: "M20 11a8 8 0 1 0-2.4 5.7M20 4v7h-7",
+  info: "M12 11v5M12 7.5v.5M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z",
 };
 
 const state = { meta: null, product: null, convId: null, busy: false, controller: null, history: [], ask: null };
@@ -61,15 +62,14 @@ async function init() {
     sel.value = state.product;
     const c = meta.coverage;
     $("#footModel").textContent = `${meta.model} · Bedrock`;
-    $("#footStatus").title = `${meta.model} on Amazon Bedrock`;
-    $("#footStatus").dataset.tip = `${meta.model} · connected`;
+    setUser(meta.user);
     $("#hintModel").textContent = meta.model;
     $("#footData").textContent = `${c.n_patients.toLocaleString()} patients · ${fmtPeriod(c)}`;
-    $("#scopeMarket").textContent = meta.indication.replace(/\s*\(.*\)\s*/, "") || meta.indication;
-    $("#scopePeriod").textContent = fmtPeriod(c);
-    $("#chipData").title = `${meta.indication} · ${c.months} months of claims (${c.data_start} to ${c.data_end})`;
+    $("#srcFacts").textContent = `${meta.indication} · ${c.n_patients.toLocaleString()} patients · ${fmtPeriod(c)}`;
+    $("#srcPill").title = `Connected: IQVIA claims, ${meta.indication}, ${fmtPeriod(c)}`;
   } catch (e) {
     $("#footData").textContent = "Backend unavailable";
+    setUser(null);
   }
   renderWelcome();
   loadHistory();
@@ -105,6 +105,8 @@ function bindUI() {
   try { collapsed = localStorage.getItem("ciq.navCollapsed") === "1"; } catch (e) { /* storage blocked */ }
   setSidebarCollapsed(collapsed);
   $("#historySearch").addEventListener("input", renderHistory);
+  initDataSources();
+  initAccountMenu();
   $("#askSkip").addEventListener("click", () => answerAsk(null));
   $("#askNext").addEventListener("click", () => askAdvance());
   document.addEventListener("keydown", (e) => {
@@ -578,7 +580,8 @@ function renderCompare(initial) {
   const dl = el("button", "card-act", "CSV");
   dl.type = "button";
   dl.addEventListener("click", () => downloadCSV(res));
-  head.append(title, tag, interpret, dl);
+  const method = methodPanel(res);
+  head.append(title, tag, interpret, ...(method ? [method.button] : []), dl);
 
   const brandBar = el("div", "cmp-brands");
   const tabs = el("div", "cmp-tabs");
@@ -586,7 +589,7 @@ function renderCompare(initial) {
   const overlay = el("div", "cmp-loading");
   overlay.append(el("span", "cmp-spinner"), el("span", null, "Updating comparison…"));
   overlay.hidden = true;
-  card.append(head, brandBar, tabs, body, overlay);
+  card.append(head, ...(method ? [method.panel] : []), brandBar, tabs, body, overlay);
 
   for (const [key, label] of COMPARE_TABS) {
     const b = el("button", "tab", label);
@@ -918,6 +921,8 @@ function renderCard(res) {
   }
   const chartViews = [];
   const actions = el("div", "card-actions");
+  const method = methodPanel(res);
+  if (method) actions.appendChild(method.button);
   actions.appendChild(actionButton("download", "Download data (CSV)", () => downloadCSV(res)));
   const png = actionButton("image", "Download charts (PNG)", () => downloadPNG(res, chartViews));
   png.hidden = !res.charts?.length;
@@ -925,7 +930,9 @@ function renderCard(res) {
   actions.append(png, expand);
   controls.append(tabs, actions);
   head.append(titles, controls);
-  card.append(head, body);
+  card.append(head);
+  if (method) card.append(method.panel);
+  card.append(body);
 
   function setExpanded(on) {
     card.classList.toggle("expanded", on);
@@ -993,6 +1000,255 @@ function renderCard(res) {
   }
   show(names[0]);
   return card;
+}
+
+// ---------------------------------------------------------------- "how this was calculated" (i) panel
+function methodPanel(res) {
+  const m = res.method;
+  if (!m || !(m.steps?.length || m.question)) return null;
+  const panel = el("section", "method");
+  panel.hidden = true;
+  const button = actionButton("info", "How this was calculated", () => {
+    panel.hidden = !panel.hidden;
+    button.classList.toggle("on", !panel.hidden);
+    button.setAttribute("aria-expanded", String(!panel.hidden));
+  });
+  button.setAttribute("aria-expanded", "false");
+
+  const head = el("div", "m-head");
+  head.append(el("span", "m-kicker", "How this was calculated"));
+  if (m.question) head.append(el("p", "m-question", m.question));
+  panel.appendChild(head);
+  const grid = el("div", "m-grid");
+  panel.appendChild(grid);
+
+  const section = (title, node) => { const s = el("div", "m-sec"); s.append(el("h5", null, title), node); grid.appendChild(s); return s; };
+  const list = (items, tag = "ul") => { const l = el(tag); for (const i of items) l.appendChild(el("li", null, i)); return l; };
+
+  if (m.steps?.length) section("Calculation", list(m.steps, "ol"));
+  if (m.reasoning) section("Why it matters", el("p", null, m.reasoning));
+  if (m.definitions?.length) section("Definitions", list(m.definitions));
+  if (m.sql) {
+    const pre = el("pre", "m-sql");
+    pre.appendChild(el("code", null, m.sql));
+    section("Query", pre).classList.add("wide");
+  }
+  if (m.lot_rules?.length) {
+    const ol = el("ol", "m-rules");
+    for (const r of m.lot_rules) {
+      const li = el("li");
+      li.append(el("span", "m-rule", r.rule), el("span", "m-applied", r.applied));
+      ol.appendChild(li);
+    }
+    const s = section("Line-of-therapy business rules", ol);
+    s.classList.add("wide");
+    if (m.lot_scope) s.appendChild(el("p", "m-note", m.lot_scope));
+  }
+  const facts = el("dl", "m-facts");
+  const fact = (k, v) => { if (v) facts.append(el("dt", null, k), el("dd", null, v)); };
+  fact("Data", res.meta?.coverage ? `${res.meta.coverage.n_patients.toLocaleString()} patients, claims ${fmtPeriod(res.meta.coverage)}` : "");
+  fact("Parameters", paramText(m.params) || "defaults");
+  fact("Source", m.source);
+  const src = section("Inputs", facts);
+  src.classList.add("wide");
+  if (res.caveats?.length) section("Caveats", list(res.caveats)).classList.add("wide");
+  return { button, panel };
+}
+
+// ---------------------------------------------------------------- account (profile row + menu, like Claude)
+function setUser(u) {
+  const name = (u?.name || "Analyst").trim();
+  const initials = name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join("") || "A";
+  $("#acctAvatar").textContent = initials;
+  $("#acctName").textContent = name;
+  $("#acctRole").textContent = u?.role || "";
+  $("#amName").textContent = name;
+  $("#amEmail").textContent = u?.email || u?.role || "";
+  $("#footStatus").dataset.tip = name;
+}
+
+function initAccountMenu() {
+  const btn = $("#footStatus"), menu = $("#acctMenu");
+  const setOpen = (open) => {
+    if (open && $("#app").classList.contains("nav-collapsed") && !narrowScreen.matches) setSidebarCollapsed(false, true);
+    menu.hidden = !open;
+    btn.setAttribute("aria-expanded", String(open));
+  };
+  btn.addEventListener("click", (e) => { e.stopPropagation(); setOpen(menu.hidden); });
+  document.addEventListener("click", (e) => { if (!menu.hidden && !e.target.closest(".account")) setOpen(false); });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !menu.hidden) setOpen(false); });
+  $("#amSources").addEventListener("click", (e) => {
+    e.stopPropagation();
+    setOpen(false);
+    $("#srcPill").click();
+  });
+  $("#amKeys").addEventListener("click", () => { $("#amKeyList").hidden = !$("#amKeyList").hidden; });
+  const mac = /Mac|iPhone|iPad/.test(navigator.platform);
+  for (const k of document.querySelectorAll(".am-keys kbd.mk")) k.textContent = (mac ? "⌘" : "Ctrl ") + k.textContent;
+}
+
+// ---------------------------------------------------------------- data sources (IQVIA connected; others preview only)
+const KIND_ICONS = {
+  payer: "M12 3l7 3v5c0 4.5-3 8.3-7 10-4-1.7-7-5.5-7-10V6zM9 12l2 2 4-4",
+  crm: "M16 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM8 13a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM2 20c0-3 2.7-5 6-5s6 2 6 5M14 15.5c.6-.3 1.3-.5 2-.5 3.3 0 6 2 6 5",
+  specialty: "M10.5 20.5l10-10a4.95 4.95 0 1 0-7-7l-10 10a4.95 4.95 0 1 0 7 7zM8.5 8.5l7 7",
+  research: "M4 20V10M10 20V4M16 20v-7M22 20H2",
+  custom: "M3 5h18v14H3zM3 10h18M9 10v9",
+};
+const SOURCE_KINDS = [
+  { id: "payer", name: "Payer & formulary", desc: "Formulary status, covered lives, PA and step edits by plan", join: "Payer plan id" },
+  { id: "crm", name: "Promotional / CRM", desc: "Rep calls, samples, speaker programs, HCP engagement", join: "HCP (NPI)" },
+  { id: "specialty", name: "Specialty pharmacy & hub", desc: "Dispense, adherence and patient-support program data", join: "Patient token" },
+  { id: "research", name: "Market research", desc: "ATU, chart audits and survey data", join: "HCP (NPI)" },
+  { id: "custom", name: "Custom table", desc: "Any other table you want CIQ to use", join: "" },
+];
+const PLATFORMS = [
+  { id: "snowflake", logo: "snowflake.svg", name: "Snowflake", sub: "Data Cloud", auth: ["Key pair", "OAuth", "PrivateLink"],
+    fields: [["Account URL", "xy12345.us-east-1.snowflakecomputing.com"], ["Warehouse", "ANALYTICS_WH"], ["Database", "COMMERCIAL"],
+      ["Schema", "PAYER"], ["Table", "FORMULARY_STATUS"], ["Role", "CIQ_READER"]] },
+  { id: "databricks", logo: "databricks.svg", name: "Databricks", sub: "Unity Catalog · SQL warehouse", auth: ["Service principal", "OAuth"],
+    fields: [["Workspace URL", "https://adb-123.azuredatabricks.net"], ["HTTP path", "/sql/1.0/warehouses/abc123"], ["Catalog", "commercial"],
+      ["Schema", "crm"], ["Table", "calls"]] },
+  { id: "aws", logo: "aws.svg", wide: true, name: "Amazon Web Services", sub: "Redshift · S3 · Athena", auth: ["IAM role", "PrivateLink"],
+    fields: [["Service", "Redshift, S3 or Athena"], ["Region", "us-east-1"], ["Endpoint or bucket", "s3://commercial-data/payer/"],
+      ["Database or prefix", "payer"], ["Table or file pattern", "formulary_*.parquet"], ["IAM role ARN", "arn:aws:iam::123456789012:role/ciq-reader"]] },
+  { id: "azure", logo: "azure.svg", name: "Microsoft Azure", sub: "Synapse · Data Lake · SQL", auth: ["Entra ID", "Managed identity", "Private Link"],
+    fields: [["Service", "Synapse, Data Lake or Azure SQL"], ["Server or account", "commercial.sql.azuresynapse.net"],
+      ["Database or container", "commercial"], ["Schema or path", "crm"], ["Table", "rep_calls"]] },
+  { id: "bigquery", logo: "bigquery.svg", name: "Google BigQuery", sub: "Google Cloud", auth: ["Service account", "Workload identity"],
+    fields: [["Project", "commercial-analytics"], ["Dataset", "payer"], ["Table", "formulary_status"]] },
+  { id: "upload", icon: "M12 16V4M7 9l5-5 5 5M4 20h16", name: "Upload a file", sub: "CSV · Parquet · Excel", auth: ["Up to 1 GB"],
+    fields: [["File", ""], ["Table name in CIQ", "payer_formulary"]] },
+];
+const JOIN_KEYS = ["HCP (NPI)", "Payer plan id", "Patient token", "Product (NDC / HCPCS)", "None (reference table)"];
+
+function platformLogo(pl, cls) {
+  const box = el("span", cls + (pl.wide ? " wide" : ""));
+  if (pl.logo) {
+    const img = el("img");
+    img.src = `/static/assets/logos/${pl.logo}`;
+    img.alt = "";
+    box.appendChild(img);
+  } else {
+    box.innerHTML = svgIcon(pl.icon);
+    box.classList.add("glyph");
+  }
+  return box;
+}
+
+function initDataSources() {
+  const pill = $("#srcPill"), pop = $("#srcPop");
+  const avail = $("#srcAvailable");
+  for (const k of SOURCE_KINDS.filter((x) => x.id !== "custom")) {
+    const row = el("div", "sp-item");
+    const logo = el("span", "sp-logo kind");
+    logo.innerHTML = svgIcon(KIND_ICONS[k.id]);
+    const text = el("span", "sp-text");
+    text.append(el("span", "sp-name", k.name), el("span", "sp-desc", k.desc));
+    const btn = el("button", "sp-btn", "Connect");
+    btn.type = "button";
+    btn.addEventListener("click", () => openConnect(k.id));
+    row.append(logo, text, btn);
+    avail.appendChild(row);
+  }
+  const setPop = (open) => { pop.hidden = !open; pill.setAttribute("aria-expanded", String(open)); };
+  pill.addEventListener("click", (e) => { e.stopPropagation(); setPop(pop.hidden); });
+  document.addEventListener("click", (e) => { if (!pop.hidden && !e.target.closest("#sources")) setPop(false); });
+  $("#srcAdd").addEventListener("click", () => openConnect());
+  $("#srcConnectMore").addEventListener("click", () => openConnect());
+  $("#cmClose").addEventListener("click", closeConnect);
+  $("#cmBack").addEventListener("click", () => connectStep(1));
+  $("#connectModal").addEventListener("click", (e) => { if (e.target.id === "connectModal") closeConnect(); });
+  $("#cmStep2").addEventListener("submit", (e) => e.preventDefault());   // preview: never submits anywhere
+  document.addEventListener("keydown", (e) => {
+    if (e.key !== "Escape") return;
+    if (!$("#connectModal").hidden) closeConnect();
+    else if (!pop.hidden) setPop(false);
+  });
+
+  const kinds = $("#cmKinds");
+  for (const k of SOURCE_KINDS) {
+    const b = el("button", "cm-kind");
+    b.type = "button";
+    b.dataset.kind = k.id;
+    const icon = el("span", "ck-icon");
+    icon.innerHTML = svgIcon(KIND_ICONS[k.id]);
+    const text = el("span", "ck-text");
+    text.append(el("span", "ck-name", k.name), el("span", "ck-desc", k.desc));
+    b.append(icon, text);
+    b.addEventListener("click", () => selectKind(k.id));
+    kinds.appendChild(b);
+  }
+  const plats = $("#cmPlatforms");
+  for (const pl of PLATFORMS) {
+    const b = el("button", "cm-platform");
+    b.type = "button";
+    const auth = el("span", "cp-auth");
+    for (const a of pl.auth) auth.appendChild(el("span", null, a));
+    b.append(platformLogo(pl, "cp-logo"), el("span", "cp-name", pl.name), el("span", "cp-sub", pl.sub), auth);
+    b.addEventListener("click", () => showConnectForm(pl));
+    plats.appendChild(b);
+  }
+}
+
+function connectStep(n) {
+  $("#cmStep1").hidden = n !== 1;
+  $("#cmStep2").hidden = n !== 2;
+  const kindChosen = Boolean(document.querySelector(".cm-kind.selected"));
+  [...$("#cmSteps").children].forEach((li, i) => {
+    const step = i + 1;
+    const done = n === 2 ? step < 3 : step === 1 && kindChosen;
+    li.classList.toggle("done", done);
+    li.classList.toggle("active", n === 2 ? step === 3 : step === (kindChosen ? 2 : 1));
+  });
+}
+
+function selectKind(id) {
+  for (const b of document.querySelectorAll(".cm-kind")) b.classList.toggle("selected", b.dataset.kind === id);
+  if (!$("#cmStep1").hidden) connectStep(1);
+}
+
+function openConnect(kind) {
+  $("#srcPop").hidden = true;
+  $("#srcPill").setAttribute("aria-expanded", "false");
+  $("#connectModal").hidden = false;
+  selectKind(kind || "");
+  connectStep(1);
+  $("#cmClose").focus();
+}
+
+function closeConnect() {
+  $("#connectModal").hidden = true;
+  $("#srcAdd").focus();
+}
+
+function showConnectForm(pl) {
+  const kind = SOURCE_KINDS.find((k) => document.querySelector(`.cm-kind.selected[data-kind="${k.id}"]`));
+  $("#cmFormLogo").replaceChildren(platformLogo(pl, "cm-form-logo-inner"));
+  $("#cmFormTitle").textContent = pl.name;
+  $("#cmFormSub").textContent = kind ? `${kind.name} · ${pl.sub}` : pl.sub;
+  const box = $("#cmFields");
+  box.replaceChildren();
+  const field = (label, control, wide) => {
+    const f = el("label", "cm-field" + (wide ? " wide" : ""));
+    f.append(el("span", null, label), control);
+    box.appendChild(f);
+  };
+  for (const [label, hint] of pl.fields) {
+    const input = el("input");
+    input.type = label === "File" ? "file" : "text";
+    if (hint) input.placeholder = hint;
+    field(label, input, label === "File");
+  }
+  const select = (opts, chosen) => {
+    const sel = el("select");
+    for (const o of opts) { const op = el("option", null, o); op.selected = o === chosen; sel.appendChild(op); }
+    return sel;
+  };
+  if (pl.id !== "upload") field("Authentication", select(pl.auth.filter((a) => !/link/i.test(a))));
+  field("Join key to IQVIA claims", select(JOIN_KEYS, kind?.join || JOIN_KEYS[0]));
+  connectStep(2);
+  box.querySelector("input")?.focus();
 }
 
 // ---------------------------------------------------------------- follow-up suggestions

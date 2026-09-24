@@ -104,7 +104,9 @@ class ToolResult:
         def records(df: pd.DataFrame):
             return _jsonable(df.head(max_rows))
         data = {k: records(v) for k, v in self.data.items()} if isinstance(self.data, dict) else records(self.data)
+        from ciq import methodology
         return json_safe({"tool": self.tool, "title": self.title, "subtitle": self.subtitle, "params": self.params,
+                          "method": methodology.describe(self.tool, self.params, self.meta),
                           "data": data, "kpis": self.kpis,
                           "observations": self.insights if self.observations is None else self.observations,
                           "charts": self.charts, "insights": self.insights, "caveats": self.caveats,

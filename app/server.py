@@ -14,6 +14,7 @@ from starlette.concurrency import run_in_threadpool
 
 from app import settings, store
 from app.agent import Agent, rewind_last_exchange
+from ciq import methodology
 from ciq import config as ciq_config
 from ciq.tools.base import coverage, json_safe, query, resolve_product
 from ciq.tools.registry import TOOLS, run_tool
@@ -73,6 +74,7 @@ async def meta():
     products = await run_in_threadpool(
         lambda: query("select product, drug_class, patients from fn_product_catalog(p_therapy_group := 'LUNG_SYSTEMIC')"))
     return {"coverage": await run_in_threadpool(coverage), "model": settings.MODEL_LABEL,
+            "user": {"name": settings.USER_NAME, "email": settings.USER_EMAIL, "role": settings.USER_ROLE},
             "indication": ciq_config.INDICATION_NAME, "default_product": ciq_config.DEFAULT_PRODUCT,
             "products": products.to_dict(orient="records"),
             "suggestions": [{"group": g, "questions": q} for g, q in SUGGESTIONS],
@@ -149,6 +151,9 @@ async def conversation(cid: str):
     conv = store.load(cid)
     if conv is None:
         raise HTTPException(404, "not found")
+    for turn in conv.transcript:   # results saved before the (i) panel existed get their methodology now
+        for r in turn.get("results", []):
+            r.setdefault("method", methodology.describe(r.get("tool", ""), r.get("params", {}), r.get("meta", {})))
     return json_safe({**conv.summary(), "transcript": conv.transcript,
                       "pending": {"id": conv.pending["ask_id"], **conv.pending["ask"]} if conv.pending else None})
 

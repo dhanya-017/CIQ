@@ -30,3 +30,17 @@ MODEL_LABEL = os.getenv("CIQ_MODEL_LABEL", "Claude Sonnet 5")
 EFFORT = os.getenv("CIQ_EFFORT", "high")                # low | medium | high | xhigh | max
 MAX_TOKENS = int(os.getenv("CIQ_MAX_TOKENS", "32000"))
 MAX_AGENT_STEPS = int(os.getenv("CIQ_MAX_AGENT_STEPS", "12"))
+
+
+def _default_user_name() -> str:
+    try:
+        import getpass
+        return getpass.getuser().replace(".", " ").replace("_", " ").title()
+    except Exception:
+        return "Analyst"
+
+
+# Shown in the sidebar profile row (no sign-in yet: set these per user in .env)
+USER_NAME = os.getenv("CIQ_USER_NAME") or _default_user_name()
+USER_EMAIL = os.getenv("CIQ_USER_EMAIL", "")
+USER_ROLE = os.getenv("CIQ_USER_ROLE", "Brand analytics")

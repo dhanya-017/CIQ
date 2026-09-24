@@ -14,9 +14,11 @@ from ciq import config
 from ciq.tools import charts, customize
 from ciq.tools.base import ToolResult, call_fn, coverage, kpi, pct, query, resolve_product
 
-LINE_BUCKET_NOTE = ("Lines of therapy are derived from observed claims only (regimen window "
-                    f"{config.LOT_REGIMEN_WINDOW_DAYS}d, discontinuation gap {config.LOT_GAP_DAYS}d); "
-                    "line 1 = first line observed in the data window, which may not be the patient's true first line.")
+LINE_BUCKET_NOTE = (f"Lines of therapy follow the oncology LOT rules: the first {config.LOT_REGIMEN_WINDOW_DAYS} days "
+                    f"and {config.LOT_REGIMEN_WINDOW_CYCLES} cycles define the regimen; a new drug after that, or a "
+                    f"gap of {config.LOT_GAP_DAYS}+ days between administrations, starts a new line; dropping a drug "
+                    "or switching to a biosimilar/subcutaneous form does not. Line 1 = first line observed in the "
+                    "data window, which may not be the patient's true first line.")
 
 
 def _window_caveat(requested_days: int, available: pd.Series, direction: str) -> list[str]:

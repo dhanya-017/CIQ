@@ -30,7 +30,7 @@ const ICONS = {
   collapse: "M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5",
 };
 
-const state = { meta: null, product: null, convId: null, busy: false, controller: null, history: [] };
+const state = { meta: null, product: null, convId: null, busy: false, controller: null, history: [], ask: null };
 
 // ---------------------------------------------------------------- init
 async function init() {
@@ -94,12 +94,19 @@ function bindUI() {
   try { collapsed = localStorage.getItem("ciq.navCollapsed") === "1"; } catch (e) { /* storage blocked */ }
   setSidebarCollapsed(collapsed);
   $("#historySearch").addEventListener("input", renderHistory);
+  $("#askSkip").addEventListener("click", () => answerAsk(null));
+  $("#askNext").addEventListener("click", () => askAdvance());
   document.addEventListener("keydown", (e) => {
     const open = document.querySelector(".card.expanded");
     if (e.key === "Escape" && open) open.dispatchEvent(new Event("collapse"));
     const mod = (e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey;
     if (mod && e.key.toLowerCase() === "b") { e.preventDefault(); toggleSidebar(); }
     if (mod && e.key.toLowerCase() === "k") { e.preventDefault(); focusSearch(); }
+    // number keys pick an option in the question panel (unless the user is typing an answer)
+    if (state.ask && !mod && /^[1-9]$/.test(e.key) && !(e.target.closest("textarea, input") && e.target.value)) {
+      const btn = $("#askOptions").children[Number(e.key) - 1];
+      if (btn) { e.preventDefault(); btn.click(); }
+    }
   });
   $("#productSelect").addEventListener("change", (e) => {
     state.product = e.target.value;
@@ -224,6 +231,7 @@ function newConversation() {
   history.replaceState(null, "", "/");
   $("#messages").replaceChildren();
   setFollowups([]);
+  closeAsk();
   $("#welcome").hidden = false;
   $("#convTitle").textContent = "New analysis";
   renderWelcome();
@@ -245,7 +253,7 @@ async function openConversation(id) {
   let lastTools = [];
   if (conv.product) { state.product = conv.product; $("#productSelect").value = conv.product; }
   for (const t of conv.transcript) {
-    if (t.role === "user") addUserMsg(t.text, t.product);
+    if (t.role === "user") addUserMsg(t.text, t.product, Boolean(t.answer_to));
     else {
       const m = createAssistantMsg();
       m.restore(t);
@@ -253,14 +261,21 @@ async function openConversation(id) {
     }
   }
   setFollowups(lastTools);
+  const answered = new Set(conv.transcript.filter((t) => t.answer_to).map((t) => t.answer_to));
+  for (const rec of document.querySelectorAll(".ask-record[data-id]")) {
+    if (!answered.has(rec.dataset.id)) rec.classList.add("waiting");
+  }
+  closeAsk();
+  if (conv.pending) openAsk(conv.pending);
   loadHistory();
 }
 
 // ---------------------------------------------------------------- chat
-function addUserMsg(text, product) {
+function addUserMsg(text, product, isAnswer) {
   const m = el("div", "msg user");
   const b = el("div", "bubble");
-  if (product) b.appendChild(el("span", "b-brand", `Focus: ${product}`));
+  if (isAnswer) b.appendChild(el("span", "b-brand", "Your answer"));
+  else if (product) b.appendChild(el("span", "b-brand", `Focus: ${product}`));
   b.appendChild(document.createTextNode(text));
   m.appendChild(b);
   $("#messages").appendChild(m);
@@ -274,8 +289,13 @@ async function submit(preset) {
   input.value = "";
   autosize();
   setFollowups([]);
+  const isAnswer = Boolean(state.ask);
+  let sent = text;
+  if (isAnswer && !preset) sent = askTypedAnswer(text);   // typed "Other" answer
+  closeAsk();
+  document.querySelectorAll(".ask-record.waiting").forEach((r) => r.classList.remove("waiting"));
   $("#welcome").hidden = true;
-  addUserMsg(text, state.product);
+  addUserMsg(sent, state.product, isAnswer);
   const m = createAssistantMsg();
   setBusy(true);
   state.controller = new AbortController();
@@ -283,7 +303,7 @@ async function submit(preset) {
     const res = await fetch("/api/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message: text, conversation_id: state.convId, product: state.product }),
+      body: JSON.stringify({ message: sent, conversation_id: state.convId, product: state.product }),
       signal: state.controller.signal,
     });
     if (!res.ok) throw new Error((await res.json()).detail || res.statusText);
@@ -322,6 +342,7 @@ function handleEvent(ev, m) {
     case "status": m.status(ev.text); break;
     case "tool_start": m.toolStart(ev); break;
     case "tool_result": m.toolResult(ev); break;
+    case "ask": m.ask(ev); break;
     case "error": m.error(ev.message); break;
     case "done":
       if (ev.conversation) $("#convTitle").textContent = ev.conversation.title;
@@ -385,6 +406,7 @@ function createAssistantMsg() {
 
   let md = "";
   let raf = 0;
+  let asked = null;
   const stepEls = {};
   const render = () => {
     raf = 0;
@@ -432,15 +454,23 @@ function createAssistantMsg() {
     error(msg) {
       body.appendChild(el("div", "error-box", msg));
     },
+    ask(ev) {
+      asked = ev;
+      const rec = renderAskRecord(ev);
+      if (!state.restoring) rec.classList.add("waiting");
+      body.insertBefore(rec, answerBox);
+      if (!state.restoring) openAsk(ev);
+    },
     finish() {
       if (raf) { cancelAnimationFrame(raf); render(); }
       answer.classList.remove("streaming");
       trace.classList.remove("live");
       root.classList.remove("working");
       const n = steps.children.length;
-      status.textContent = n ? "Analysis complete" : "Answered";
-      if (md && !state.restoring) setFollowups(tools);
-      if (!n && !think.textContent) trace.remove();
+      status.textContent = asked ? "Waiting for your answer" : n ? "Analysis complete" : "Answered";
+      trace.classList.toggle("asking", Boolean(asked));
+      if (md && !state.restoring && !asked) setFollowups(tools);
+      if (!n && !think.textContent && !asked) trace.remove();
       else trace.open = false;
     },
     restore(turn) {
@@ -454,6 +484,7 @@ function createAssistantMsg() {
       }
       updateCount();
       for (const r of turn.results || []) if (!r.meta?.internal) cards.appendChild(renderCard(r));
+      if (turn.ask) api.ask(turn.ask);
       md = turn.text || "";
       render();
       api.finish();
@@ -655,6 +686,123 @@ function renderScorecard(res) {
   t.append(thead, tb);
   wrap.appendChild(t);
   return wrap;
+}
+
+// ---------------------------------------------------------------- clarifying questions (ask_user)
+// The agent pauses on a question; the panel above the composer collects the answer and the next message sends it.
+function renderAskRecord(ask) {
+  const rec = el("div", "ask-record");
+  rec.dataset.id = ask.id;
+  for (const q of ask.questions) {
+    const row = el("div", "ar-row");
+    row.append(el("span", "ar-ic", "?"), el("span", "ar-q", q.question));
+    const opts = el("div", "ar-opts");
+    for (const o of q.options) opts.appendChild(el("span", "ar-opt", o.label));
+    row.appendChild(opts);
+    rec.appendChild(row);
+  }
+  return rec;
+}
+
+function openAsk(ask) {
+  state.ask = { ...ask, step: 0, answers: ask.questions.map(() => null) };
+  setFollowups([]);
+  $("#askPanel").hidden = false;
+  $("#input").placeholder = "…or type your own answer";
+  paintAsk();
+}
+
+function closeAsk() {
+  state.ask = null;
+  $("#askPanel").hidden = true;
+  $("#input").placeholder = `Ask a question, e.g. “What is the ${state.product || "brand"} patient share in each line?”`;
+}
+
+function paintAsk() {
+  const a = state.ask;
+  const q = a.questions[a.step];
+  const tabs = $("#askTabs");
+  tabs.replaceChildren();
+  if (a.questions.length > 1) {
+    a.questions.forEach((qq, i) => {
+      const t = el("button", "ask-tab" + (i === a.step ? " active" : "") + (a.answers[i] ? " done" : ""),
+        qq.header || `Question ${i + 1}`);
+      t.type = "button";
+      t.addEventListener("click", () => { a.step = i; paintAsk(); });
+      tabs.appendChild(t);
+    });
+  }
+  $("#askQuestion").textContent = q.question;
+  const box = $("#askOptions");
+  box.replaceChildren();
+  const chosen = new Set(a.answers[a.step] || []);
+  q.options.forEach((o, i) => {
+    const b = el("button", "ask-opt" + (chosen.has(o.label) ? " selected" : ""));
+    b.type = "button";
+    b.setAttribute("role", "option");
+    b.setAttribute("aria-selected", chosen.has(o.label));
+    const num = el("span", "ao-num", q.multi_select ? (chosen.has(o.label) ? "✓" : "") : String(i + 1));
+    if (q.multi_select) num.classList.add("check");
+    const txt = el("span", "ao-text");
+    txt.appendChild(el("span", "ao-label", o.label));
+    if (o.description) txt.appendChild(el("span", "ao-desc", o.description));
+    b.append(num, txt);
+    b.addEventListener("click", () => {
+      if (q.multi_select) {
+        chosen.has(o.label) ? chosen.delete(o.label) : chosen.add(o.label);
+        a.answers[a.step] = q.options.map((x) => x.label).filter((l) => chosen.has(l));
+        paintAsk();
+      } else {
+        a.answers[a.step] = [o.label];
+        askAdvance();
+      }
+    });
+    box.appendChild(b);
+  });
+  const next = $("#askNext");
+  const last = a.step === a.questions.length - 1;
+  next.hidden = !q.multi_select && !(a.questions.length > 1 && a.answers[a.step]);
+  next.textContent = last ? "Send answer" : "Next";
+  next.disabled = q.multi_select && !(a.answers[a.step] || []).length;
+  $("#askHint").textContent = q.multi_select
+    ? "Select all that apply, or type your own answer below"
+    : "Pick an option, press its number, or type your own answer below";
+}
+
+function askAdvance() {
+  const a = state.ask;
+  const nextOpen = a.answers.findIndex((x, i) => i > a.step && !x);
+  const anyOpen = a.answers.findIndex((x) => !x);
+  if (nextOpen >= 0 || (anyOpen >= 0 && anyOpen !== a.step)) {
+    a.step = nextOpen >= 0 ? nextOpen : anyOpen;
+    paintAsk();
+    return;
+  }
+  answerAsk(a.answers);
+}
+
+// answers: list per question (null = skipped); null overall = skip everything
+function answerAsk(answers) {
+  const a = state.ask;
+  if (!a) return;
+  submit(formatAnswer(a, answers));
+}
+
+function formatAnswer(a, answers) {
+  if (!answers) return "No preference - use your best judgement.";
+  const parts = a.questions.map((q, i) => {
+    const v = answers[i]?.length ? answers[i].join(", ") : "no preference";
+    return a.questions.length > 1 ? `${q.header || q.question}: ${v}` : v;
+  });
+  return parts.join("\n");
+}
+
+// a typed answer fills the current question; anything already picked for the others is kept
+function askTypedAnswer(text) {
+  const a = state.ask;
+  const answers = a.answers.slice();
+  answers[a.step] = [text];
+  return formatAnswer(a, answers);
 }
 
 // ---------------------------------------------------------------- result cards

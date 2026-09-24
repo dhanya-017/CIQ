@@ -26,6 +26,7 @@ class Conversation:
     updated_at: float = field(default_factory=time.time)
     api_messages: list = field(default_factory=list)
     transcript: list = field(default_factory=list)
+    pending: dict | None = None   # a clarifying question waiting for the user's answer (see agent.ask_user)
 
     def summary(self) -> dict:
         return {"id": self.id, "title": self.title, "product": self.product, "updated_at": self.updated_at,

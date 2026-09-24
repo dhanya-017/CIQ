@@ -12,7 +12,7 @@ import pytest
 
 from ciq.tools.registry import TOOLS, anthropic_tools, run_tool
 
-CASES = [(t.name, {}) for t in TOOLS if t.name not in ("run_sql", "compare_products", "customize_chart")] + [
+CASES = [(t.name, {}) for t in TOOLS if t.name not in ("run_sql", "compare_products", "customize_chart", "ask_user")] + [
     ("compare_products", {"products": ["KEYTRUDA", "opdivo", "TECENTRIQ"]}),
     ("compare_products", {"products": ["TAGRISSO", "ALECENSA"]}),
     ("run_sql", {"sql": "select product, count(*) n from fact_drug_event group by 1 order by n desc limit 5"}),
@@ -200,6 +200,17 @@ def test_run_sql_chart_with_customize():
                                          "customize": [{"op": "highlight", "values": ["70-79"], "color": "gold"},
                                                        {"op": "sort", "by": "label", "order": "asc"}]}})
     assert "Customised" in res.meta["chart_summary"]
+
+
+def test_ask_user_validation():
+    from app.agent import _parse_ask
+    ok, err = _parse_ask({"questions": [{"question": "Which timeframe?", "header": "Timeframe",
+                                         "options": [{"label": "Last 6 months"}, {"label": "All data", "description": "Jan-Jul"}]}]})
+    assert err is None and ok["questions"][0]["options"][1]["description"] == "Jan-Jul"
+    assert _parse_ask({"questions": []})[1]
+    assert "2-4 options" in _parse_ask({"questions": [{"question": "X?", "options": [{"label": "only one"}]}]})[1]
+    with pytest.raises(ValueError, match="handled by the chat agent"):
+        run_tool("ask_user", {"questions": []})
 
 
 if __name__ == "__main__":

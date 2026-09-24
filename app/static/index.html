@@ -96,6 +96,19 @@
 
     <footer class="composer-wrap">
       <div class="followups" id="followups" hidden></div>
+      <section class="ask" id="askPanel" role="dialog" aria-labelledby="askQuestion" hidden>
+        <div class="ask-head">
+          <span class="ask-badge">Question from CIQ</span>
+          <div class="ask-tabs" id="askTabs"></div>
+          <button type="button" class="ask-x" id="askSkip" title="Skip: let CIQ decide">Skip</button>
+        </div>
+        <p class="ask-q" id="askQuestion"></p>
+        <div class="ask-opts" id="askOptions" role="listbox"></div>
+        <div class="ask-foot">
+          <span class="ask-hint" id="askHint">Pick an option, press its number, or type your own answer below</span>
+          <button type="button" class="ask-next" id="askNext" hidden>Continue</button>
+        </div>
+      </section>
       <form class="composer" id="composer">
         <textarea id="input" rows="1" placeholder="Ask a question, e.g. “What is the Keytruda patient share in each line?”" autocomplete="off"></textarea>
         <button type="submit" class="send" id="btnSend" aria-label="Send">

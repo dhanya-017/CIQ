@@ -207,6 +207,29 @@ TOOLS: list[Tool] = [
          a.customize_chart, required=("ops",), needs_history=True),
 ]
 
+def _ask_user(**_):   # the agent loop pauses on this tool; it never runs here
+    raise ValueError("ask_user is handled by the chat agent: it pauses the turn and shows the question to the user")
+
+
+ASK_USER = Tool(
+    "ask_user", "Ask the user a clarifying question and wait for the answer. The UI shows a panel with your options; "
+    "the user clicks one (or several with multi_select) or types their own answer. Use it when the request has two "
+    "or more materially different readings (which segmentation, metric, competitor set, time window, which chart to "
+    "change, what 'best' means); for minor settings with an obvious default, use the default and state it instead. "
+    "Call it ALONE in a turn (no other tools alongside), ask everything you need in one call (1-3 questions), and "
+    "give 2-4 concrete options per question, recommended option first.",
+    {"questions": {"type": "array", "minItems": 1, "maxItems": 3, "description": "Questions to ask together.",
+                   "items": {"type": "object", "required": ["question", "options"], "properties": {
+                       "question": {"type": "string", "description": "The full question, ending with '?'."},
+                       "header": {"type": "string", "description": "1-2 word label, e.g. 'Timeframe', 'Brands'."},
+                       "multi_select": {"type": "boolean", "description": "Allow several options. Default false."},
+                       "options": {"type": "array", "minItems": 2, "maxItems": 4, "items": {
+                           "type": "object", "required": ["label"], "properties": {
+                               "label": {"type": "string", "description": "Short choice text (1-5 words)."},
+                               "description": {"type": "string", "description": "What choosing it means."}}}}}}}},
+    _ask_user, required=("questions",))
+TOOLS.append(ASK_USER)
+
 _BY_NAME = {t.name: t for t in TOOLS}
 
 

@@ -137,7 +137,8 @@ async def conversation(cid: str):
     conv = store.load(cid)
     if conv is None:
         raise HTTPException(404, "not found")
-    return json_safe({**conv.summary(), "transcript": conv.transcript})
+    return json_safe({**conv.summary(), "transcript": conv.transcript,
+                      "pending": {"id": conv.pending["ask_id"], **conv.pending["ask"]} if conv.pending else None})
 
 
 @app.delete("/api/conversations/{cid}")

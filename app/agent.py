@@ -34,6 +34,7 @@ TOOL_LABELS = {
     "persistency": "Estimating persistency", "hcp_market_concentration": "Decile-ing treating HCPs",
     "hcp_product_share_deciles": "Decile-ing HCPs by brand share", "run_sql": "Running a custom query",
     "compare_products": "Comparing brands side by side", "customize_chart": "Customising the chart",
+    "ask_user": "Asking you a question",
 }
 
 
@@ -68,9 +69,36 @@ claims data, then explaining what the numbers mean for the brand.
   "Mar to May", a target line, bar vs line, sorting, labels), call customize_chart on it instead of re-running the
   analysis; put all requested edits in one call. Respect exact colours and ranges the user names. After a chart edit,
   reply in one or two sentences unless the user asked a question.
+- Ask before analysing when the request has two or more materially different readings that lead to different
+  analyses, e.g. "segment" (age? payer? line of therapy? prescriber?), "performance" (share? uptake? persistency?),
+  "competitors" when several drug classes fit, "the trend" without a metric, or an edit that could target several
+  charts. Call ask_user alone, with 2-4 concrete options per question (recommended first) and every open choice
+  in one call. Don't ask about minor settings with an obvious default (time grain, top N, decile method): use the
+  default and state it in one line. Never ask about something the user already specified, and don't ask twice in a
+  row. When the user answers, carry out the original request with their choice.
 - Never mention internal tool or function names to the user; suggest next steps as questions they can ask.
 - Use markdown: short paragraphs, bold key figures, bullet lists; at most H3 headings, in sentence case
   (e.g. "KEYTRUDA share by HCP decile", not "KEYTRUDA HCP Market-Share Deciles"). Be concise."""
+
+
+def _parse_ask(args) -> tuple[dict | None, str | None]:
+    """Validate an ask_user call into {questions: [...]} for the UI, or return an error for the model."""
+    qs = args.get("questions") if isinstance(args, dict) else None
+    if not isinstance(qs, list) or not 1 <= len(qs) <= 3:
+        return None, "questions must be a list of 1-3 questions"
+    out = []
+    for i, q in enumerate(qs):
+        opts = q.get("options") if isinstance(q, dict) else None
+        if not isinstance(q, dict) or not str(q.get("question", "")).strip():
+            return None, f"questions[{i}] needs a `question`"
+        if not isinstance(opts, list) or not 2 <= len(opts) <= 4 or not all(
+                isinstance(o, dict) and str(o.get("label", "")).strip() for o in opts):
+            return None, f"questions[{i}] needs 2-4 options, each with a `label`"
+        out.append({"question": q["question"].strip(), "header": str(q.get("header") or "").strip()[:24],
+                    "multi_select": bool(q.get("multi_select")),
+                    "options": [{"label": o["label"].strip()[:80], "description": str(o.get("description") or "").strip()}
+                                for o in opts]})
+    return {"questions": out}, None
 
 
 def _check_input(tool, args) -> str | None:
@@ -140,10 +168,17 @@ class Agent:
         conv.product = focus
         if conv.title == "New analysis":
             conv.title = user_text.strip().replace("\n", " ")[:80]
-        conv.api_messages.append({"role": "user", "content": [
-            {"type": "text", "text": f"<context>Focus brand selected in the UI: {focus}</context>\n\n{user_text}"}]})
+        if conv.pending:   # this message answers the clarifying question the last turn ended on
+            pend, conv.pending = conv.pending, None
+            conv.api_messages.append({"role": "user", "content": pend["results"] + [
+                {"type": "tool_result", "tool_use_id": pend["ask_id"],
+                 "content": f"The user answered (focus brand in the UI: {focus}):\n{user_text}"}]})
+            conv.transcript.append({"role": "user", "text": user_text, "product": focus, "answer_to": pend["ask_id"]})
+        else:
+            conv.api_messages.append({"role": "user", "content": [
+                {"type": "text", "text": f"<context>Focus brand selected in the UI: {focus}</context>\n\n{user_text}"}]})
+            conv.transcript.append({"role": "user", "text": user_text, "product": focus})
         turn = {"role": "assistant", "steps": [], "results": [], "text": "", "thinking": ""}
-        conv.transcript.append({"role": "user", "text": user_text, "product": focus})
         conv.transcript.append(turn)
 
         try:
@@ -158,7 +193,8 @@ class Agent:
                             output_config={"effort": settings.EFFORT},
                         ) as stream:
                             async for ev in stream:
-                                if ev.type == "content_block_start" and ev.content_block.type == "tool_use":
+                                if ev.type == "content_block_start" and ev.content_block.type == "tool_use" \
+                                        and ev.content_block.name != "ask_user":   # a question is not an analysis step
                                     name = ev.content_block.name
                                     yield {"type": "tool_start", "id": ev.content_block.id, "name": name,
                                            "label": TOOL_LABELS.get(name, name)}
@@ -190,11 +226,20 @@ class Agent:
                 if msg.stop_reason == "max_tokens":
                     yield {"type": "error", "message": "Response was cut off (max tokens). Try a narrower question."}
                     break
-                for b in tool_uses:
+                # a valid ask_user pauses the turn; an invalid one goes back to the model as an error
+                asks, ask_errors, ask = [b for b in tool_uses if b.name == "ask_user"], [], None
+                for b in asks:
+                    parsed, err = _parse_ask(b.input) if ask is None else (None, "only one ask_user per turn")
+                    if parsed:
+                        ask = (b, parsed)
+                    else:
+                        ask_errors.append({"type": "tool_result", "tool_use_id": b.id, "is_error": True, "content": err})
+                runnable = [b for b in tool_uses if b.name != "ask_user"]
+                for b in runnable:
                     turn["steps"].append({"id": b.id, "name": b.name, "label": TOOL_LABELS.get(b.name, b.name),
                                           "input": b.input})
                 history = [r for t in conv.transcript if t.get("role") == "assistant" for r in t.get("results", [])]
-                outcomes = await asyncio.gather(*(self._execute(b, history) for b in tool_uses))
+                outcomes = await asyncio.gather(*(self._execute(b, history) for b in runnable))
                 for api_block, ui_event in outcomes:
                     for s in turn["steps"]:
                         if s["id"] == ui_event["id"]:
@@ -203,7 +248,14 @@ class Agent:
                     if ui_event["ok"]:
                         turn["results"].append(ui_event["result"] | {"call_id": ui_event["id"]})
                     yield ui_event
-                conv.api_messages.append({"role": "user", "content": [o[0] for o in outcomes]})
+                if ask:
+                    block, parsed = ask
+                    conv.pending = {"ask_id": block.id, "ask": parsed,
+                                    "results": [o[0] for o in outcomes] + ask_errors}
+                    turn["ask"] = {"id": block.id, **parsed}
+                    yield {"type": "ask", "id": block.id, **parsed}
+                    break   # the turn ends here; the user's next message is the answer
+                conv.api_messages.append({"role": "user", "content": [o[0] for o in outcomes] + ask_errors})
                 if turn["text"]:
                     turn["text"] += "\n\n"
                     yield {"type": "text", "text": "\n\n"}
@@ -220,7 +272,8 @@ class Agent:
         except anthropic.APIStatusError as e:
             yield {"type": "error", "message": f"Bedrock error {e.status_code}: {e.message}"}
         finally:
-            _repair_history(conv)
+            if not conv.pending:   # a turn paused on a question is complete as it is
+                _repair_history(conv)
             store.save(conv)
         yield {"type": "done", "conversation": conv.summary()}
 

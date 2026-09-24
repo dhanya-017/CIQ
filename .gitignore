@@ -1,0 +1,25 @@
+# Data: claims (patient-level), warehouse and saved conversations - never commit
+Data/
+
+# Generated outputs that embed data aggregates
+docs/tool_gallery.html
+
+# Personal / reference documents
+*.pdf
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+
+# Local env / secrets
+.env
+*.env
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

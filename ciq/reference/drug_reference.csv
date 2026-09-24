@@ -1,0 +1,106 @@
+molecule,product,drug_class,therapy_group,default_days_supply,hcpcs_codes,name_regex
+pembrolizumab,KEYTRUDA,PD-1/PD-L1 INHIBITOR,LUNG_SYSTEMIC,21,J9271;J9277,pembrolizumab|keytruda
+nivolumab + relatlimab,OPDUALAG,PD-1/LAG-3 INHIBITOR,OTHER_ONCOLOGY,28,J9298,relatlimab|opdualag
+nivolumab,OPDIVO,PD-1/PD-L1 INHIBITOR,LUNG_SYSTEMIC,14,J9299;J9289,nivolumab|opdivo
+atezolizumab,TECENTRIQ,PD-1/PD-L1 INHIBITOR,LUNG_SYSTEMIC,21,J9022;J9024,atezolizumab|tecentriq
+durvalumab,IMFINZI,PD-1/PD-L1 INHIBITOR,LUNG_SYSTEMIC,28,J9173,durvalumab|imfinzi
+cemiplimab,LIBTAYO,PD-1/PD-L1 INHIBITOR,LUNG_SYSTEMIC,21,J9119,cemiplimab|libtayo
+tislelizumab,TEVIMBRA,PD-1/PD-L1 INHIBITOR,LUNG_SYSTEMIC,21,J9329,tislelizumab|tevimbra
+dostarlimab,JEMPERLI,PD-1/PD-L1 INHIBITOR,OTHER_ONCOLOGY,21,J9272,dostarlimab|jemperli
+retifanlimab,ZYNYZ,PD-1/PD-L1 INHIBITOR,OTHER_ONCOLOGY,28,J9345,retifanlimab|zynyz
+ipilimumab,YERVOY,CTLA-4 INHIBITOR,LUNG_SYSTEMIC,42,J9228,ipilimumab|yervoy
+tremelimumab,IMJUDO,CTLA-4 INHIBITOR,LUNG_SYSTEMIC,28,J9347,tremelimumab|imjudo
+carboplatin,CARBOPLATIN,PLATINUM CHEMO,LUNG_SYSTEMIC,21,J9045;J9278;C9308,carboplatin|kyxata
+cisplatin,CISPLATIN,PLATINUM CHEMO,LUNG_SYSTEMIC,21,J9060,cisplatin
+nab-paclitaxel,NAB-PACLITAXEL,TAXANE,LUNG_SYSTEMIC,21,J9264;J9258;J9259,protein.?bound|albumin.?bound|abraxane
+paclitaxel,PACLITAXEL,TAXANE,LUNG_SYSTEMIC,21,J9267,paclitaxel
+docetaxel,DOCETAXEL,TAXANE,LUNG_SYSTEMIC,21,J9171;J9172;J9232,docetaxel|taxotere
+pemetrexed,PEMETREXED,ANTIMETABOLITE CHEMO,LUNG_SYSTEMIC,21,J9305;J9292;J9294;J9304;J9296;J9297;J9314;J9323;J9324,pemetrexed|alimta|pemfexy|pemrydi
+gemcitabine,GEMCITABINE,ANTIMETABOLITE CHEMO,LUNG_SYSTEMIC,21,J9201;J9184;J9196;J9198,gemcitabine|infugem
+etoposide,ETOPOSIDE,OTHER CHEMO,LUNG_SYSTEMIC,21,J9181;J8560,etoposide
+vinorelbine,VINORELBINE,OTHER CHEMO,LUNG_SYSTEMIC,21,J9390,vinorelbine|navelbine
+irinotecan,IRINOTECAN,OTHER CHEMO,LUNG_SYSTEMIC,21,J9206,irinotecan(?!.*liposom)|camptosar
+topotecan,TOPOTECAN,OTHER CHEMO,LUNG_SYSTEMIC,21,J9351;J8705,topotecan|hycamtin
+lurbinectedin,ZEPZELCA,OTHER CHEMO,LUNG_SYSTEMIC,21,J9223,lurbinectedin|zepzelca
+tarlatamab,IMDELLTRA,DLL3 BISPECIFIC,LUNG_SYSTEMIC,14,J9026,tarlatamab|imdelltra
+bevacizumab,BEVACIZUMAB,ANTI-VEGF,LUNG_SYSTEMIC,21,J9035;C9257;Q5107;Q5118;Q5126;Q5129,bevacizumab|avastin|mvasi|zirabev|alymsys|vegzelma
+ramucirumab,CYRAMZA,ANTI-VEGF,LUNG_SYSTEMIC,21,J9308,ramucirumab|cyramza
+amivantamab,RYBREVANT,EGFR/MET BISPECIFIC,LUNG_SYSTEMIC,14,J9061;J9062,amivantamab|rybrevant
+fam-trastuzumab deruxtecan,ENHERTU,ANTIBODY-DRUG CONJUGATE,LUNG_SYSTEMIC,21,J9358,trastuzumab deruxtecan|enhertu
+datopotamab deruxtecan,DATROWAY,ANTIBODY-DRUG CONJUGATE,LUNG_SYSTEMIC,21,J9011,datopotamab|datroway
+telisotuzumab vedotin,EMRELIS,ANTIBODY-DRUG CONJUGATE,LUNG_SYSTEMIC,14,J9326,telisotuzumab|emrelis
+sacituzumab govitecan,TRODELVY,ANTIBODY-DRUG CONJUGATE,OTHER_ONCOLOGY,21,J9317,sacituzumab|trodelvy
+osimertinib,TAGRISSO,EGFR TKI,LUNG_SYSTEMIC,30,,osimertinib|tagrisso
+lazertinib,LAZCLUZE,EGFR TKI,LUNG_SYSTEMIC,30,,lazertinib|lazcluze
+erlotinib,ERLOTINIB,EGFR TKI,LUNG_SYSTEMIC,30,,erlotinib|tarceva
+gefitinib,GEFITINIB,EGFR TKI,LUNG_SYSTEMIC,30,,gefitinib|iressa
+afatinib,GILOTRIF,EGFR TKI,LUNG_SYSTEMIC,30,,afatinib|gilotrif
+dacomitinib,VIZIMPRO,EGFR TKI,LUNG_SYSTEMIC,30,,dacomitinib|vizimpro
+sunvozertinib,ZEGFROVY,EGFR TKI,LUNG_SYSTEMIC,30,,sunvozertinib|zegfrovy
+alectinib,ALECENSA,ALK TKI,LUNG_SYSTEMIC,30,,alectinib|alecensa
+lorlatinib,LORBRENA,ALK TKI,LUNG_SYSTEMIC,30,,lorlatinib|lorbrena
+brigatinib,ALUNBRIG,ALK TKI,LUNG_SYSTEMIC,30,,brigatinib|alunbrig
+crizotinib,XALKORI,ALK TKI,LUNG_SYSTEMIC,30,,crizotinib|xalkori
+ceritinib,ZYKADIA,ALK TKI,LUNG_SYSTEMIC,30,,ceritinib|zykadia
+entrectinib,ROZLYTREK,ROS1/NTRK TKI,LUNG_SYSTEMIC,30,,entrectinib|rozlytrek
+repotrectinib,AUGTYRO,ROS1/NTRK TKI,LUNG_SYSTEMIC,30,,repotrectinib|augtyro
+taletrectinib,IBTROZI,ROS1/NTRK TKI,LUNG_SYSTEMIC,30,,taletrectinib|ibtrozi
+larotrectinib,VITRAKVI,ROS1/NTRK TKI,LUNG_SYSTEMIC,30,,larotrectinib|vitrakvi
+sotorasib,LUMAKRAS,KRAS G12C INHIBITOR,LUNG_SYSTEMIC,30,,sotorasib|lumakras
+adagrasib,KRAZATI,KRAS G12C INHIBITOR,LUNG_SYSTEMIC,30,,adagrasib|krazati
+capmatinib,TABRECTA,MET TKI,LUNG_SYSTEMIC,30,,capmatinib|tabrecta
+tepotinib,TEPMETKO,MET TKI,LUNG_SYSTEMIC,30,,tepotinib|tepmetko
+selpercatinib,RETEVMO,RET TKI,LUNG_SYSTEMIC,30,,selpercatinib|retevmo
+pralsetinib,GAVRETO,RET TKI,LUNG_SYSTEMIC,30,,pralsetinib|gavreto
+dabrafenib,TAFINLAR,BRAF/MEK INHIBITOR,LUNG_SYSTEMIC,30,,dabrafenib|tafinlar
+trametinib,MEKINIST,BRAF/MEK INHIBITOR,LUNG_SYSTEMIC,30,,trametinib|mekinist
+encorafenib,BRAFTOVI,BRAF/MEK INHIBITOR,LUNG_SYSTEMIC,30,,encorafenib|braftovi
+binimetinib,MEKTOVI,BRAF/MEK INHIBITOR,LUNG_SYSTEMIC,30,,binimetinib|mektovi
+zongertinib,HERNEXEOS,HER2 TKI,LUNG_SYSTEMIC,30,,zongertinib|hernexeos
+oxaliplatin,OXALIPLATIN,PLATINUM CHEMO,OTHER_ONCOLOGY,14,J9263,oxaliplatin
+fluorouracil,FLUOROURACIL,ANTIMETABOLITE CHEMO,OTHER_ONCOLOGY,14,J9190,fluorouracil(?!.*cream)(?!.*tolak)
+capecitabine,CAPECITABINE,ANTIMETABOLITE CHEMO,OTHER_ONCOLOGY,21,,capecitabine|xeloda
+irinotecan liposome,ONIVYDE,OTHER CHEMO,OTHER_ONCOLOGY,14,J9205,onivyde|irinotecan liposom
+doxorubicin,DOXORUBICIN,OTHER CHEMO,OTHER_ONCOLOGY,21,J9000,doxorubicin
+cyclophosphamide,CYCLOPHOSPHAMIDE,OTHER CHEMO,OTHER_ONCOLOGY,21,J9070;J9071;J9072;J9073;J9074;J9075;J9076,cyclophosphamide
+temozolomide,TEMOZOLOMIDE,OTHER CHEMO,OTHER_ONCOLOGY,28,,temozolomide
+bendamustine,BENDAMUSTINE,OTHER CHEMO,OTHER_ONCOLOGY,28,J9033;J9034;J9036;J9056,bendamustine|bendeka|treanda|vivimusta|belrapzo
+trastuzumab,TRASTUZUMAB,HER2 ANTIBODY,OTHER_ONCOLOGY,21,J9355;Q5112;Q5113;Q5114;Q5116;Q5117;Q5146;J9316,trastuzumab(?!.*deruxtecan)|herceptin|kanjinti|ogivri|herzuma|hercessi
+pertuzumab,PERJETA,HER2 ANTIBODY,OTHER_ONCOLOGY,21,J9306,pertuzumab|perjeta
+cetuximab,ERBITUX,EGFR ANTIBODY,OTHER_ONCOLOGY,14,J9055,cetuximab|erbitux
+panitumumab,VECTIBIX,EGFR ANTIBODY,OTHER_ONCOLOGY,14,J9303,panitumumab|vectibix
+enfortumab vedotin,PADCEV,ANTIBODY-DRUG CONJUGATE,OTHER_ONCOLOGY,28,J9177,enfortumab|padcev
+rituximab,RITUXIMAB,CD20 ANTIBODY,OTHER_ONCOLOGY,21,J9312;J9311;Q5115;Q5119;Q5123,rituximab|rituxan|truxima|ruxience|riabni
+letrozole,LETROZOLE,HORMONAL THERAPY,OTHER_ONCOLOGY,30,,letrozole|femara
+anastrozole,ANASTROZOLE,HORMONAL THERAPY,OTHER_ONCOLOGY,30,,anastrozole|arimidex
+exemestane,EXEMESTANE,HORMONAL THERAPY,OTHER_ONCOLOGY,30,,exemestane|aromasin
+tamoxifen,TAMOXIFEN,HORMONAL THERAPY,OTHER_ONCOLOGY,30,,tamoxifen
+fulvestrant,FULVESTRANT,HORMONAL THERAPY,OTHER_ONCOLOGY,28,J9395,fulvestrant|faslodex
+elacestrant,ORSERDU,HORMONAL THERAPY,OTHER_ONCOLOGY,30,,elacestrant|orserdu
+leuprolide,LEUPROLIDE,ADT/LHRH,OTHER_ONCOLOGY,90,J9217;J9218;J1950;J1951;J1952,leuprolide|lupron|eligard
+degarelix,FIRMAGON,ADT/LHRH,OTHER_ONCOLOGY,28,J9155,degarelix|firmagon
+goserelin,ZOLADEX,ADT/LHRH,OTHER_ONCOLOGY,28,J9202,goserelin|zoladex
+relugolix,ORGOVYX,ADT/LHRH,OTHER_ONCOLOGY,30,,relugolix|orgovyx
+bicalutamide,BICALUTAMIDE,ANTIANDROGEN,OTHER_ONCOLOGY,30,,bicalutamide|casodex
+enzalutamide,XTANDI,ANTIANDROGEN,OTHER_ONCOLOGY,30,,enzalutamide|xtandi
+abiraterone,ABIRATERONE,ANTIANDROGEN,OTHER_ONCOLOGY,30,,abiraterone|zytiga|abirtega
+darolutamide,NUBEQA,ANTIANDROGEN,OTHER_ONCOLOGY,30,,darolutamide|nubeqa
+apalutamide,ERLEADA,ANTIANDROGEN,OTHER_ONCOLOGY,30,,apalutamide|erleada
+palbociclib,IBRANCE,CDK4/6 INHIBITOR,OTHER_ONCOLOGY,30,,palbociclib|ibrance
+ribociclib,KISQALI,CDK4/6 INHIBITOR,OTHER_ONCOLOGY,30,,ribociclib|kisqali
+abemaciclib,VERZENIO,CDK4/6 INHIBITOR,OTHER_ONCOLOGY,30,,abemaciclib|verzenio
+cabozantinib,CABOMETYX,OTHER TKI,OTHER_ONCOLOGY,30,,cabozantinib|cabometyx
+lenvatinib,LENVIMA,OTHER TKI,OTHER_ONCOLOGY,30,,lenvatinib|lenvima
+regorafenib,STIVARGA,OTHER TKI,OTHER_ONCOLOGY,30,,regorafenib|stivarga
+pazopanib,PAZOPANIB,OTHER TKI,OTHER_ONCOLOGY,30,,pazopanib|votrient
+axitinib,INLYTA,OTHER TKI,OTHER_ONCOLOGY,30,,axitinib|inlyta
+everolimus,EVEROLIMUS,OTHER TKI,OTHER_ONCOLOGY,30,,everolimus|afinitor
+olaparib,LYNPARZA,PARP INHIBITOR,OTHER_ONCOLOGY,30,,olaparib|lynparza
+talazoparib,TALZENNA,PARP INHIBITOR,OTHER_ONCOLOGY,30,,talazoparib|talzenna
+lenalidomide,LENALIDOMIDE,IMMUNOMODULATOR,OTHER_ONCOLOGY,28,,lenalidomide|revlimid
+pegfilgrastim/filgrastim,G-CSF,G-CSF,SUPPORTIVE,14,J2506;J1442;J1449;Q5101;Q5108;Q5110;Q5111;Q5120;Q5122;Q5125;Q5127;Q5130,filgrastim|flilgrastim|udenyca|fulphila|nyvepria|ziextenzo|stimufend|fylnetra|rolvedon|zarxio|nivestym|releuko|neulasta|neupogen
+denosumab,DENOSUMAB,BONE-MODIFYING AGENT,SUPPORTIVE,28,J0897;Q5136;Q5157;Q5158;Q5162,denosumab|xgeva|prolia
+zoledronic acid,ZOLEDRONIC ACID,BONE-MODIFYING AGENT,SUPPORTIVE,28,J3489,zoledronic|zometa
+epoetin/darbepoetin,ESA,ERYTHROPOIESIS-STIMULATING AGENT,SUPPORTIVE,14,J0881;J0885;Q5105;Q5106,epoetin|darbepoetin|retacrit|aranesp|procrit
+trilaciclib,COSELA,MYELOPROTECTION,SUPPORTIVE,21,J1448,trilaciclib|cosela
+megestrol,MEGESTROL,APPETITE STIMULANT,SUPPORTIVE,30,,megestrol

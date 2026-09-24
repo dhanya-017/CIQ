@@ -1,0 +1,699 @@
+/* CIQ Data Intelligence - frontend (no build step). */
+"use strict";
+
+const $ = (sel, el = document) => el.querySelector(sel);
+const el = (tag, cls, text) => {
+  const n = document.createElement(tag);
+  if (cls) n.className = cls;
+  if (text !== undefined) n.textContent = text;
+  return n;
+};
+const fmtInt = (v) => (v == null ? "—" : Number(v).toLocaleString());
+const fmtPct = (v) => (v == null ? "—" : (v * 100).toFixed(1) + "%");
+
+const state = { meta: null, product: null, convId: null, busy: false, controller: null };
+
+// ---------------------------------------------------------------- init
+async function init() {
+  bindUI();
+  try {
+    const meta = await (await fetch("/api/meta")).json();
+    state.meta = meta;
+    state.product = localStorage.getItem("ciq.product") || meta.default_product;
+    const sel = $("#productSelect");
+    for (const p of meta.products) {
+      const o = el("option", null, `${p.product}`);
+      o.value = p.product;
+      o.title = `${p.drug_class} · ${p.patients} patients`;
+      sel.appendChild(o);
+    }
+    if (!meta.products.some((p) => p.product === state.product)) state.product = meta.default_product;
+    sel.value = state.product;
+    const c = meta.coverage;
+    $("#footModel").textContent = `${meta.model} · Bedrock`;
+    $("#hintModel").textContent = meta.model;
+    $("#footData").textContent = `${c.n_patients.toLocaleString()} patients · ${c.data_start} → ${c.data_end}`;
+    $("#chipData").textContent = `${meta.indication} · ${c.months} months of claims`;
+  } catch (e) {
+    $("#footData").textContent = "Backend unavailable";
+  }
+  renderWelcome();
+  loadHistory();
+  const cid = new URLSearchParams(location.search).get("c");
+  if (cid) openConversation(cid);
+}
+
+function bindUI() {
+  $("#composer").addEventListener("submit", (e) => { e.preventDefault(); submit(); });
+  const input = $("#input");
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); submit(); }
+  });
+  input.addEventListener("input", autosize);
+  $("#btnStop").addEventListener("click", () => state.controller && state.controller.abort());
+  $("#btnNew").addEventListener("click", newConversation);
+  $("#btnCompare").addEventListener("click", startCompare);
+  $("#btnMenu").addEventListener("click", () => $("#app").classList.toggle("nav-open"));
+  $("#productSelect").addEventListener("change", (e) => {
+    state.product = e.target.value;
+    localStorage.setItem("ciq.product", state.product);
+    if (!state.convId) renderWelcome();
+  });
+}
+
+function autosize() {
+  const t = $("#input");
+  t.style.height = "auto";
+  t.style.height = Math.min(t.scrollHeight, 180) + "px";
+}
+
+// ---------------------------------------------------------------- welcome
+async function renderWelcome() {
+  const p = state.product || "your brand";
+  $("#heroBrand").textContent = p;
+  $("#input").placeholder = `Ask a question, e.g. “What is the ${p} patient share in each line?”`;
+  const kpis = $("#kpis");
+  kpis.replaceChildren(...Array.from({ length: 5 }, () => {
+    const k = el("div", "kpi skeleton"); k.append(el("div", "k-val"), el("div", "k-lab", " ")); return k;
+  }));
+  const sg = $("#suggest");
+  sg.replaceChildren();
+  for (const g of (state.meta?.suggestions || [])) {
+    const box = el("div", "s-group");
+    box.appendChild(el("h3", null, g.group));
+    for (const q of g.questions) {
+      const text = q.replaceAll("{p}", p);
+      const b = el("button", "s-q", text);
+      b.type = "button";
+      b.addEventListener("click", () => submit(text));
+      box.appendChild(b);
+    }
+    sg.appendChild(box);
+  }
+  if (!state.product) return;
+  try {
+    const ov = await (await fetch(`/api/overview?product=${encodeURIComponent(state.product)}`)).json();
+    kpis.replaceChildren(...ov.kpis.map((k) => {
+      const d = el("div", "kpi");
+      d.append(el("div", "k-val", k.format === "pct" ? fmtPct(k.value) : fmtInt(k.value)), el("div", "k-lab", k.label));
+      return d;
+    }));
+    const tc = $("#trendCard");
+    tc.replaceChildren();
+    if (ov.trend_chart) {
+      const c = el("div", "chart");
+      tc.appendChild(c);
+      embed(c, ov.trend_chart, 200);
+    }
+  } catch (e) { /* overview is decorative; ignore */ }
+}
+
+// ---------------------------------------------------------------- history
+async function loadHistory() {
+  const ul = $("#historyList");
+  let items = [];
+  try { items = await (await fetch("/api/conversations")).json(); } catch (e) { /* offline */ }
+  ul.replaceChildren();
+  if (!items.length) { ul.appendChild(el("li", "empty", "No analyses yet")); return; }
+  for (const c of items) {
+    const li = el("li");
+    if (c.id === state.convId) li.classList.add("active");
+    li.appendChild(el("span", "h-title", c.title));
+    li.title = `${c.title}\n${c.product || ""} · ${new Date(c.updated_at * 1000).toLocaleString()}`;
+    const del = el("button", "h-del", "×");
+    del.title = "Delete";
+    del.addEventListener("click", async (e) => {
+      e.stopPropagation();
+      if (!confirm("Delete this analysis?")) return;
+      await fetch(`/api/conversations/${c.id}`, { method: "DELETE" });
+      if (state.convId === c.id) newConversation();
+      loadHistory();
+    });
+    li.appendChild(del);
+    li.addEventListener("click", () => { openConversation(c.id); $("#app").classList.remove("nav-open"); });
+    ul.appendChild(li);
+  }
+}
+
+function newConversation() {
+  if (state.busy) state.controller?.abort();
+  state.convId = null;
+  history.replaceState(null, "", "/");
+  $("#messages").replaceChildren();
+  $("#welcome").hidden = false;
+  $("#convTitle").textContent = "New analysis";
+  renderWelcome();
+  loadHistory();
+  $("#input").focus();
+}
+
+async function openConversation(id) {
+  if (state.busy) return;
+  const res = await fetch(`/api/conversations/${id}`);
+  if (!res.ok) return;
+  const conv = await res.json();
+  state.convId = conv.id;
+  history.replaceState(null, "", `/?c=${conv.id}`);
+  $("#convTitle").textContent = conv.title;
+  $("#welcome").hidden = true;
+  const box = $("#messages");
+  box.replaceChildren();
+  if (conv.product) { state.product = conv.product; $("#productSelect").value = conv.product; }
+  for (const t of conv.transcript) {
+    if (t.role === "user") addUserMsg(t.text, t.product);
+    else {
+      const m = createAssistantMsg();
+      m.restore(t);
+    }
+  }
+  loadHistory();
+}
+
+// ---------------------------------------------------------------- chat
+function addUserMsg(text, product) {
+  const m = el("div", "msg user");
+  const b = el("div", "bubble");
+  if (product) b.appendChild(el("span", "b-brand", `Focus: ${product}`));
+  b.appendChild(document.createTextNode(text));
+  m.appendChild(b);
+  $("#messages").appendChild(m);
+  scrollDown(true);
+}
+
+async function submit(preset) {
+  const input = $("#input");
+  const text = (preset ?? input.value).trim();
+  if (!text || state.busy) return;
+  input.value = "";
+  autosize();
+  $("#welcome").hidden = true;
+  addUserMsg(text, state.product);
+  const m = createAssistantMsg();
+  setBusy(true);
+  state.controller = new AbortController();
+  try {
+    const res = await fetch("/api/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message: text, conversation_id: state.convId, product: state.product }),
+      signal: state.controller.signal,
+    });
+    if (!res.ok) throw new Error((await res.json()).detail || res.statusText);
+    const reader = res.body.getReader();
+    const dec = new TextDecoder();
+    let buf = "";
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buf += dec.decode(value, { stream: true });
+      let i;
+      while ((i = buf.indexOf("\n\n")) >= 0) {
+        const chunk = buf.slice(0, i);
+        buf = buf.slice(i + 2);
+        if (chunk.startsWith("data: ")) handleEvent(JSON.parse(chunk.slice(6)), m);
+      }
+    }
+  } catch (e) {
+    if (e.name === "AbortError") m.error("Stopped.");
+    else m.error(String(e.message || e));
+  } finally {
+    m.finish();
+    setBusy(false);
+    loadHistory();
+  }
+}
+
+function handleEvent(ev, m) {
+  switch (ev.type) {
+    case "conversation":
+      state.convId = ev.id;
+      history.replaceState(null, "", `/?c=${ev.id}`);
+      break;
+    case "thinking": m.thinking(ev.text); break;
+    case "text": m.text(ev.text); break;
+    case "status": m.status(ev.text); break;
+    case "tool_start": m.toolStart(ev); break;
+    case "tool_result": m.toolResult(ev); break;
+    case "error": m.error(ev.message); break;
+    case "done":
+      if (ev.conversation) $("#convTitle").textContent = ev.conversation.title;
+      break;
+  }
+}
+
+function setBusy(b) {
+  state.busy = b;
+  $("#btnSend").hidden = b;
+  $("#btnStop").hidden = !b;
+}
+
+let userScrolledUp = false;
+$("#thread")?.addEventListener("scroll", () => {
+  const t = $("#thread");
+  userScrolledUp = t.scrollHeight - t.scrollTop - t.clientHeight > 120;
+});
+function scrollDown(force) {
+  const t = $("#thread");
+  if (force || !userScrolledUp) t.scrollTop = t.scrollHeight;
+}
+
+// ---------------------------------------------------------------- assistant message
+function createAssistantMsg() {
+  const root = el("div", "msg assistant");
+  const av = el("div", "avatar");
+  const img = el("img"); img.src = "/static/assets/chryselys-mark.png"; img.alt = "";
+  av.appendChild(img);
+  const body = el("div", "body");
+  root.append(av, body);
+
+  const trace = el("details", "trace");
+  trace.open = true;
+  const sum = el("summary");
+  const chev = el("span", "chev", "›");
+  const status = el("span", "t-status", "Thinking");
+  const count = el("span", null, "");
+  const dots = el("span", "t-dots");
+  dots.append(el("i"), el("i"), el("i"));
+  sum.append(chev, status, dots, count);
+  trace.classList.add("live");
+  root.classList.add("working");
+  const tbody = el("div", "trace-body");
+  const think = el("div", "thinking");
+  const steps = el("ol", "steps");
+  tbody.append(think, steps);
+  trace.append(sum, tbody);
+
+  const cards = el("div", "cards");
+  const answer = el("div", "answer streaming");
+  body.append(trace, cards, answer);
+  $("#messages").appendChild(root);
+  scrollDown(true);
+
+  let md = "";
+  let raf = 0;
+  const stepEls = {};
+  const render = () => {
+    raf = 0;
+    answer.innerHTML = DOMPurify.sanitize(marked.parse(md));
+    scrollDown();
+  };
+  const updateCount = () => {
+    const n = steps.children.length;
+    count.textContent = n ? `· ${n} ${n === 1 ? "analysis" : "analyses"}` : "";
+  };
+
+  const api = {
+    thinking(t) { think.textContent += t; think.scrollTop = think.scrollHeight; },
+    text(t) {
+      md += t;
+      status.textContent = "Writing the read-out";
+      if (!raf) raf = requestAnimationFrame(render);
+    },
+    status(t) { status.textContent = t; },
+    toolStart(ev) {
+      status.textContent = ev.label + "…";
+      const li = el("li", "step running");
+      li.append(el("span", "s-ic"), el("span", null, ev.label));
+      steps.appendChild(li);
+      stepEls[ev.id] = li;
+      updateCount();
+      scrollDown();
+    },
+    toolResult(ev) {
+      const li = stepEls[ev.id];
+      if (li) {
+        li.className = "step " + (ev.ok ? "ok" : "err");
+        if (ev.ok && ev.result) li.appendChild(el("code", null, paramText(ev.result.params)));
+        if (!ev.ok) li.appendChild(el("span", "s-err", ev.error));
+      }
+      if (ev.ok) cards.appendChild(renderCard(ev.result));
+      scrollDown();
+    },
+    error(msg) {
+      body.appendChild(el("div", "error-box", msg));
+    },
+    finish() {
+      if (raf) { cancelAnimationFrame(raf); render(); }
+      answer.classList.remove("streaming");
+      trace.classList.remove("live");
+      root.classList.remove("working");
+      const n = steps.children.length;
+      status.textContent = n ? "Analysis complete" : "Answered";
+      if (!n && !think.textContent) trace.remove();
+      else trace.open = false;
+    },
+    restore(turn) {
+      think.textContent = turn.thinking || "";
+      for (const s of turn.steps || []) {
+        const li = el("li", "step " + (s.ok === false ? "err" : "ok"));
+        li.append(el("span", "s-ic"), el("span", null, s.label));
+        li.appendChild(s.ok === false ? el("span", "s-err", s.error || "failed") : el("code", null, paramText(s.input)));
+        steps.appendChild(li);
+      }
+      updateCount();
+      for (const r of turn.results || []) cards.appendChild(renderCard(r));
+      md = turn.text || "";
+      render();
+      api.finish();
+    },
+  };
+  return api;
+}
+
+function paramText(params) {
+  if (!params) return "";
+  return Object.entries(params).filter(([, v]) => v !== null && v !== undefined && v !== "")
+    .map(([k, v]) => `${k}=${typeof v === "string" ? v : JSON.stringify(v)}`).join("  ");
+}
+
+// ---------------------------------------------------------------- brand comparison
+const CATEGORICAL = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100"]; // same slots as the chart specs
+const COMPARE_TABS = [
+  ["scorecard", "Scorecard"], ["trend", "Share trend"], ["patients", "Patients"], ["payer", "Payer mix"],
+  ["lines", "Lines & regimens"], ["persistency", "Persistency"], ["prescribers", "Prescribers"],
+];
+
+function defaultCompetitors(focus, n = 2) {
+  const prods = state.meta?.products || [];
+  const cls = prods.find((p) => p.product === focus)?.drug_class;
+  const same = prods.filter((p) => p.product !== focus && p.drug_class === cls);
+  const rest = prods.filter((p) => p.product !== focus && p.drug_class !== cls);
+  return [...same, ...rest].slice(0, n).map((p) => p.product);
+}
+
+function startCompare() {
+  const focus = state.product;
+  const brands = [focus, ...defaultCompetitors(focus)];
+  submit(`Compare ${brands.join(" vs ")} side by side`);
+}
+
+function renderCompare(initial) {
+  let res = initial;
+  let tab = "scorecard";
+  let dirty = false;
+  const card = el("article", "card compare");
+
+  const head = el("header", "card-head");
+  const title = el("div", "card-title", "Brand comparison");
+  const tag = el("span", "card-tool", "side by side");
+  const interpret = el("button", "card-act primary", "Ask CIQ to interpret");
+  interpret.type = "button";
+  interpret.hidden = true;
+  interpret.addEventListener("click", () => {
+    submit(`Interpret this brand comparison: ${res.params.products.join(" vs ")}. What are the key differences and what do they mean for ${res.params.products[0]}?`);
+    interpret.hidden = true;
+  });
+  const dl = el("button", "card-act", "CSV");
+  dl.type = "button";
+  dl.addEventListener("click", () => downloadCSV(res));
+  head.append(title, tag, interpret, dl);
+
+  const brandBar = el("div", "cmp-brands");
+  const tabs = el("div", "cmp-tabs");
+  const body = el("div", "card-body cmp-body");
+  const overlay = el("div", "cmp-loading");
+  overlay.append(el("span", "cmp-spinner"), el("span", null, "Updating comparison…"));
+  overlay.hidden = true;
+  card.append(head, brandBar, tabs, body, overlay);
+
+  for (const [key, label] of COMPARE_TABS) {
+    const b = el("button", "tab", label);
+    b.type = "button";
+    b.dataset.key = key;
+    b.addEventListener("click", () => { tab = key; paint(); });
+    tabs.appendChild(b);
+  }
+
+  async function rerun(products) {
+    overlay.hidden = false;
+    try {
+      const r = await fetch("/api/tools/compare_products", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ products }),
+      });
+      const data = await r.json();
+      if (!r.ok) throw new Error(data.detail || r.statusText);
+      res = data;
+      dirty = true;
+      paint();
+    } catch (e) {
+      alert("Could not update comparison: " + e.message);
+    } finally {
+      overlay.hidden = true;
+    }
+  }
+
+  function paintBrands() {
+    brandBar.replaceChildren();
+    const prods = res.params.products;
+    prods.forEach((p, i) => {
+      const pill = el("div", "cmp-brand");
+      pill.style.setProperty("--brand", CATEGORICAL[i]);
+      const sw = el("span", "cmp-swatch");
+      const sel = el("select");
+      for (const o of state.meta?.products || []) {
+        const opt = el("option", null, o.product);
+        opt.value = o.product;
+        opt.disabled = prods.includes(o.product) && o.product !== p;
+        sel.appendChild(opt);
+      }
+      sel.value = p;
+      sel.title = "Swap brand";
+      sel.addEventListener("change", () => rerun(prods.map((x, j) => (j === i ? sel.value : x))));
+      pill.append(sw, sel);
+      if (prods.length > 2) {
+        const x = el("button", "cmp-remove", "×");
+        x.type = "button";
+        x.title = `Remove ${p}`;
+        x.addEventListener("click", () => rerun(prods.filter((_, j) => j !== i)));
+        pill.appendChild(x);
+      }
+      brandBar.appendChild(pill);
+    });
+    if (prods.length < 4) {
+      const add = el("button", "cmp-add", "+ Add brand");
+      add.type = "button";
+      add.addEventListener("click", () => {
+        const next = (state.meta?.products || []).map((o) => o.product).find((q) => !prods.includes(q));
+        if (next) rerun([...prods, next]);
+      });
+      brandBar.appendChild(add);
+    }
+  }
+
+  function paint() {
+    title.textContent = res.title;
+    interpret.hidden = !dirty;
+    paintBrands();
+    tabs.querySelectorAll(".tab").forEach((b) => b.classList.toggle("active", b.dataset.key === tab));
+    body.replaceChildren();
+    if (tab === "scorecard") {
+      body.appendChild(renderScorecard(res));
+    } else {
+      const grid = el("div", "charts");
+      body.appendChild(grid);
+      for (const spec of res.charts.filter((s) => s.usermeta?.section === tab)) {
+        const c = el("div", "chart");
+        grid.appendChild(c);
+        requestAnimationFrame(() => embed(c, spec));
+      }
+    }
+    if (res.caveats?.length) {
+      const d = el("details", "cmp-notes");
+      d.appendChild(el("summary", null, "Method & caveats"));
+      const ul = el("ul");
+      for (const c of res.caveats) ul.appendChild(el("li", null, c));
+      d.appendChild(ul);
+      body.appendChild(d);
+    }
+  }
+
+  paint();
+  return card;
+}
+
+function renderScorecard(res) {
+  const prods = res.params.products;
+  const rows = Array.isArray(res.data) ? res.data : res.data.scorecard;
+  const wrap = el("div", "table-wrap cmp-table-wrap");
+  const t = el("table", "data scorecard");
+  const thead = el("thead");
+  const hr = el("tr");
+  hr.appendChild(el("th", null, "Metric"));
+  prods.forEach((p, i) => {
+    const th = el("th", "brand-col", p);
+    th.style.setProperty("--brand", CATEGORICAL[i]);
+    hr.appendChild(th);
+  });
+  thead.appendChild(hr);
+  const tb = el("tbody");
+  let section = null;
+  for (const r of rows) {
+    if (r.section !== section) {
+      section = r.section;
+      const sr = el("tr", "section-row");
+      const td = el("td", null, section);
+      td.colSpan = prods.length + 1;
+      sr.appendChild(td);
+      tb.appendChild(sr);
+    }
+    const tr = el("tr");
+    tr.appendChild(el("td", "metric", r.metric));
+    for (const p of prods) {
+      const td = el("td", "val", r[p] ?? "—");
+      if (r.leader === p) {
+        td.classList.add("leader");
+        td.title = "Leads on this metric";
+      }
+      tr.appendChild(td);
+    }
+    tb.appendChild(tr);
+  }
+  t.append(thead, tb);
+  wrap.appendChild(t);
+  return wrap;
+}
+
+// ---------------------------------------------------------------- result cards
+function renderCard(res) {
+  if (res.tool === "compare_products") return renderCompare(res);
+  const card = el("article", "card");
+  const head = el("header", "card-head");
+  head.append(el("div", "card-title", res.title), el("span", "card-tool", res.tool));
+  const tabs = el("div", "tabs");
+  const views = {};
+  const body = el("div", "card-body");
+  const names = res.charts?.length ? ["Chart", "Data", "Notes"] : ["Data", "Notes"];
+  for (const n of names) {
+    const b = el("button", "tab", n);
+    b.type = "button";
+    b.addEventListener("click", () => show(n));
+    tabs.appendChild(b);
+    views[n] = { btn: b, pane: null };
+  }
+  const dl = el("button", "card-act", "CSV");
+  dl.type = "button";
+  dl.title = "Download data as CSV";
+  dl.addEventListener("click", () => downloadCSV(res));
+  head.append(tabs, dl);
+  card.append(head, body);
+
+  function build(n) {
+    const pane = el("div");
+    if (n === "Chart") {
+      const grid = el("div", "charts");
+      pane.appendChild(grid);
+      for (const spec of res.charts) {
+        const c = el("div", "chart");
+        grid.appendChild(c);
+        requestAnimationFrame(() => embed(c, spec));
+      }
+      if (res.insights?.length) {
+        const ul = el("ul", "card-insights");
+        for (const i of res.insights) ul.appendChild(el("li", null, i));
+        pane.appendChild(ul);
+      }
+    } else if (n === "Data") {
+      pane.appendChild(renderData(res.data));
+    } else {
+      const notes = el("div", "notes");
+      if (res.insights?.length) {
+        notes.appendChild(el("h4", null, "Key figures"));
+        const ul = el("ul");
+        for (const i of res.insights) ul.appendChild(el("li", null, i));
+        notes.appendChild(ul);
+      }
+      if (res.caveats?.length) {
+        notes.appendChild(el("h4", null, "Method & caveats"));
+        const ul = el("ul");
+        for (const c of res.caveats) ul.appendChild(el("li", null, c));
+        notes.appendChild(ul);
+      }
+      notes.appendChild(el("h4", null, "Parameters"));
+      notes.appendChild(el("div", "params", paramText(res.params) || "defaults"));
+      pane.appendChild(notes);
+    }
+    return pane;
+  }
+  function show(n) {
+    for (const [k, v] of Object.entries(views)) {
+      v.btn.classList.toggle("active", k === n);
+      if (v.pane) v.pane.hidden = k !== n;
+    }
+    if (!views[n].pane) { views[n].pane = build(n); body.appendChild(views[n].pane); }
+  }
+  show(names[0]);
+  return card;
+}
+
+function renderData(data) {
+  const wrap = el("div");
+  const frames = Array.isArray(data) ? { data } : data || {};
+  const keys = Object.keys(frames);
+  const tableBox = el("div", "table-wrap");
+  if (keys.length > 1) {
+    const pick = el("div", "table-pick");
+    keys.forEach((k, i) => {
+      const b = el("button", i === 0 ? "active" : "", k.replaceAll("_", " "));
+      b.type = "button";
+      b.addEventListener("click", () => {
+        pick.querySelectorAll("button").forEach((x) => x.classList.remove("active"));
+        b.classList.add("active");
+        tableBox.replaceChildren(renderTable(frames[k]));
+      });
+      pick.appendChild(b);
+    });
+    wrap.appendChild(pick);
+  }
+  tableBox.appendChild(renderTable(frames[keys[0]] || []));
+  wrap.appendChild(tableBox);
+  return wrap;
+}
+
+function renderTable(rows) {
+  const t = el("table", "data");
+  if (!rows.length) { t.appendChild(el("caption", null, "No rows")); return t; }
+  const cols = Object.keys(rows[0]).filter((c) => !c.startsWith("_"));
+  const thead = el("thead"); const tr = el("tr");
+  for (const c of cols) tr.appendChild(el("th", null, c.replaceAll("_", " ")));
+  thead.appendChild(tr);
+  const tb = el("tbody");
+  for (const r of rows) {
+    const row = el("tr");
+    for (const c of cols) {
+      const v = r[c];
+      const isNum = typeof v === "number";
+      const shown = v == null ? "" : isNum
+        ? (/(pct|share)/.test(c) && Math.abs(v) <= 1 ? (v * 100).toFixed(1) + "%" : v.toLocaleString(undefined, { maximumFractionDigits: 2 }))
+        : String(v);
+      row.appendChild(el("td", isNum ? "num" : "", shown));
+    }
+    tb.appendChild(row);
+  }
+  t.append(thead, tb);
+  return t;
+}
+
+function downloadCSV(res) {
+  const frames = Array.isArray(res.data) ? { data: res.data } : res.data;
+  for (const [name, rows] of Object.entries(frames)) {
+    if (!rows.length) continue;
+    const cols = Object.keys(rows[0]);
+    const esc = (v) => (v == null ? "" : /[",\n]/.test(String(v)) ? `"${String(v).replaceAll('"', '""')}"` : String(v));
+    const csv = [cols.join(","), ...rows.map((r) => cols.map((c) => esc(r[c])).join(","))].join("\n");
+    const a = el("a");
+    a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
+    a.download = `${res.tool}_${name}.csv`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  }
+}
+
+function embed(node, spec, height) {
+  const s = structuredClone(spec);
+  if (height) s.height = height;
+  vegaEmbed(node, s, { actions: { export: true, source: false, compiled: false, editor: false }, renderer: "svg" })
+    .catch((e) => { node.textContent = "Chart failed to render: " + e.message; });
+}
+
+init();

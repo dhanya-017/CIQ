@@ -213,8 +213,9 @@ TOOLS: list[Tool] = [
          "Combine several edits in one call. The result says what the edited chart now shows; check it. On an "
          "error, read the listed fields/values, fix the ops and retry.",
          {"ops": CUSTOMIZE_OPS,
-          "source": {"type": "string", "description": "tool_use id of the earlier call whose chart to edit (its "
-                     "result lists the charts). Omit to edit the most recent chart."},
+          "source": {"type": "string", "description": "Which earlier result to edit: its result id (every tool result "
+                     "starts with '[result id: ...]'), or its title. Always pass it when more than one chart has been "
+                     "shown; omitting it edits the most recent chart."},
           "chart": _int("Index of the chart within that result (see its 'charts shown' list), 0-based.", 0, 0),
           "title": {"type": "string", "description": "Optional new chart title."}},
          a.customize_chart, required=("ops",), needs_history=True),
@@ -242,6 +243,22 @@ ASK_USER = Tool(
                                "description": {"type": "string", "description": "What choosing it means."}}}}}}}},
     _ask_user, required=("questions",))
 TOOLS.append(ASK_USER)
+
+
+def _discard_result(**_):
+    raise ValueError("discard_result is handled by the chat agent")
+
+
+DISCARD_RESULT = Tool(
+    "discard_result", "Withdraw a result you produced earlier that turned out to be wrong (e.g. you edited the wrong "
+    "chart, used the wrong brand, period or filter). Its card is collapsed for the user with your reason, so wrong "
+    "numbers don't stay on screen. Then produce the correct result. Only withdraw your own mistakes, not results the "
+    "user asked for that are merely unwelcome.",
+    {"result_id": {"type": "string", "description": "The result id of the wrong result (from '[result id: ...]')."},
+     "reason": {"type": "string", "description": "One short sentence shown to the user, e.g. 'Edited the wrong chart; "
+                "see the corrected version below.'"}},
+    _discard_result, required=("result_id", "reason"))
+TOOLS.append(DISCARD_RESULT)
 
 _BY_NAME = {t.name: t for t in TOOLS}
 

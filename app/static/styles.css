@@ -652,6 +652,19 @@ table.dg-score tr.key td { background: #fffaf0; }
 .m-facts dd { margin: 0; color: var(--text); overflow-wrap: anywhere; }
 .m-facts dd:last-child { font-family: ui-monospace, Consolas, monospace; font-size: 12px; }
 
+/* withdrawn result (the agent retracted a wrong card) */
+.card.withdrawn { box-shadow: none; border-style: dashed; background: var(--surface-2); }
+.card.withdrawn:not(.wd-show) > :not(.wd-banner) { display: none; }
+.card.withdrawn.wd-show > :not(.wd-banner) { opacity: .55; }
+.wd-banner { display: flex; align-items: center; gap: 10px; padding: 10px 16px; font-size: 13px; color: var(--text-2); }
+.card.withdrawn.wd-show .wd-banner { border-bottom: 1px dashed var(--border-2); }
+.wd-icon { display: grid; color: var(--gold-600); }
+.wd-text { flex: 1; min-width: 0; }
+.wd-text b { color: var(--navy-900); }
+.wd-toggle { border: 1px solid var(--border-2); background: var(--surface); border-radius: 7px; padding: 3px 10px; font-size: 12px; color: var(--c-analytic); white-space: nowrap; }
+.wd-toggle:hover { border-color: var(--c-analytic); }
+.step.withdrew .s-ic::before { content: "↩"; color: var(--gold-600); }
+
 /* KPI strip: the "so what" in two seconds */
 .kpi-strip { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; margin-bottom: 18px; }
 .kpi-tile { border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; background: var(--surface-2); min-width: 0; }

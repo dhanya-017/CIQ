@@ -840,14 +840,22 @@ def _custom_chart(df: pd.DataFrame, chart: dict) -> tuple[dict | None, str | Non
 def customize_chart(ops: list[dict], source: str | None = None, chart: int = 0, title: str | None = None, *,
                     history: list[dict]) -> ToolResult:
     """Edit a chart already shown in this conversation (highlight, recolour, filter a range, reference lines...)."""
-    with_charts = [r for r in history if r.get("charts")]
+    with_charts = [r for r in history if r.get("charts") and not r.get("withdrawn")]
     if not with_charts:
         raise ValueError("there is no chart in this conversation yet: run an analysis (or run_sql with a chart) first")
+    ctitle = lambda c: (c.get("title") or {}).get("text", "") if isinstance(c.get("title"), dict) else str(c.get("title", ""))
     if source:
         matches = [r for r in with_charts if r.get("call_id") == source]
+        if not matches:   # fall back to a result or chart title, e.g. "Patients by product"
+            q = source.strip().lower()
+            hits = [(r, i) for r in with_charts for i, c in enumerate(r["charts"])
+                    if q in r["title"].lower() or q in ctitle(c).lower()]
+            if len({id(r) for r, _ in hits}) == 1:
+                matches, chart = [hits[-1][0]], (chart if q in hits[-1][0]["title"].lower() else hits[-1][1])
         if not matches:
-            known = "; ".join(f"{r.get('call_id')}: {r['title']}" for r in with_charts[-8:])
-            raise ValueError(f"no chart result with id '{source}'. Recent chart results: {known}")
+            known = "; ".join(f"{r.get('call_id')}: {r['title']} [charts: {', '.join(ctitle(c) for c in r['charts'])}]"
+                              for r in with_charts[-8:])
+            raise ValueError(f"no single chart result matches '{source}'. Recent chart results (id: title): {known}")
         src = matches[-1]
     else:
         src = with_charts[-1]   # default: the latest chart shown

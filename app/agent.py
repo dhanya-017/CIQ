@@ -35,7 +35,7 @@ TOOL_LABELS = {
     "persistency": "Estimating persistency", "hcp_market_concentration": "Decile-ing treating HCPs",
     "hcp_product_share_deciles": "Decile-ing HCPs by brand share", "run_sql": "Running a custom query",
     "compare_products": "Comparing brands side by side", "customize_chart": "Customising the chart",
-    "ask_user": "Asking you a question", "compare_segments": "Comparing side A and side B",
+    "ask_user": "Asking you a question", "discard_result": "Withdrawing a wrong result", "compare_segments": "Comparing side A and side B",
 }
 
 
@@ -88,6 +88,10 @@ claims data, then explaining what the numbers mean for the brand.
 - Reason like a pharma commercial analyst: say why a number matters for the brand (positioning, access,
   targeting, competitive threat), not just what it is. When you interpret line-based results, name the LOT rule
   that drives them if it matters (e.g. a 60-day gap creates a new line).
+- Every tool result starts with "[result id: ...]". To change an earlier chart, pass that id (or the chart's title)
+  as customize_chart's `source`; when several charts are on screen, never rely on the default. If you realise a
+  result you produced is wrong (wrong chart edited, wrong brand, period or filter), call discard_result on it with a
+  one-line reason, then produce the correct result, and tell the user in one sentence what you corrected.
 - Every result card has an "i" button showing how it was calculated. When the user asks how something was
   calculated, explain the steps and definitions in plain language and point them to that panel.
 - Never mention internal tool or function names to the user; suggest next steps as questions they can ask.
@@ -153,6 +157,22 @@ def _tool_defs() -> list[dict]:
     return defs
 
 
+def _discard(block, history: list[dict]) -> tuple[dict, dict]:
+    """Withdraw an earlier result: mark it in the saved transcript and tell the UI to collapse its card."""
+    rid, reason = block.input.get("result_id", ""), (block.input.get("reason") or "").strip()[:300]
+    target = next((r for r in reversed(history) if r.get("call_id") == rid), None)
+    if target is None:
+        known = "; ".join(f"{r.get('call_id')}: {r.get('title')}" for r in history[-8:])
+        err = f"no result with id '{rid}' in this conversation. Recent results: {known}"
+        return ({"type": "tool_result", "tool_use_id": block.id, "is_error": True, "content": err},
+                {"type": "tool_result", "id": block.id, "name": block.name, "ok": False, "error": err})
+    target["withdrawn"] = {"reason": reason or "Withdrawn by CIQ.", "by": block.id}
+    ok = f"Withdrawn: '{target.get('title')}' ({rid}). The user sees it collapsed with your reason."
+    return ({"type": "tool_result", "tool_use_id": block.id, "content": ok},
+            {"type": "withdraw", "id": block.id, "target": rid, "reason": target["withdrawn"]["reason"],
+             "title": target.get("title")})
+
+
 class Agent:
     def __init__(self) -> None:
         kw = {"aws_region": settings.AWS_REGION}
@@ -166,12 +186,15 @@ class Agent:
         """Run one tool call. Returns (tool_result block for the API, UI event)."""
         tool = _TOOLS_BY_NAME.get(block.name)
         err = f"unknown tool {block.name}" if tool is None else _check_input(tool, block.input)
+        if err is None and block.name == "discard_result":
+            return _discard(block, history)
         if err is None:
             try:
                 res = await run_in_threadpool(run_tool, block.name, block.input, history)
                 ui = {"type": "tool_result", "id": block.id, "name": block.name, "ok": True,
                       "result": await run_in_threadpool(res.to_dict, 500)}
-                return {"type": "tool_result", "tool_use_id": block.id, "content": res.to_llm_text()}, ui
+                content = f"[result id: {block.id}]\n" + res.to_llm_text()   # lets the model refer back to it
+                return {"type": "tool_result", "tool_use_id": block.id, "content": content}, ui
             except Exception as e:  # tool-level failure: report back so the model can recover
                 err = f"{type(e).__name__}: {e}"
         return ({"type": "tool_result", "tool_use_id": block.id, "is_error": True, "content": err},
@@ -257,6 +280,12 @@ class Agent:
                 history = [r for t in conv.transcript if t.get("role") == "assistant" for r in t.get("results", [])]
                 outcomes = await asyncio.gather(*(self._execute(b, history) for b in runnable))
                 for api_block, ui_event in outcomes:
+                    if ui_event["type"] == "withdraw":
+                        for s in turn["steps"]:
+                            if s["id"] == ui_event["id"]:
+                                s["ok"], s["withdrew"] = True, ui_event.get("title") or ui_event["target"]
+                        yield ui_event
+                        continue
                     for s in turn["steps"]:
                         if s["id"] == ui_event["id"]:
                             s["ok"] = ui_event["ok"]
@@ -308,7 +337,7 @@ def add_panel_result(conv: store.Conversation, user_text: str, product: str | No
     api_index = len(conv.api_messages)
     conv.api_messages.append({"role": "user", "content": content})
     conv.api_messages.append({"role": "assistant", "content": [{"type": "text", "text":
-        "Comparison shown to the user as a card:\n\n" + llm_text}]})
+        f"Comparison shown to the user as a card:\n\n[result id: {result['call_id']}]\n" + llm_text}]})
     conv.transcript.append({"role": "user", "text": user_text, "product": product, "api_index": api_index})
     conv.transcript.append({"role": "assistant", "text": "", "thinking": "", "results": [result],
                             "steps": [{"id": result["call_id"], "name": tool, "label": TOOL_LABELS.get(tool, tool),

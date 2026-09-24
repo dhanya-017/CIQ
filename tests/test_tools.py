@@ -12,7 +12,7 @@ import pytest
 
 from ciq.tools.registry import TOOLS, anthropic_tools, run_tool
 
-CASES = [(t.name, {}) for t in TOOLS if t.name not in ("run_sql", "compare_products", "compare_segments", "customize_chart", "ask_user")] + [
+CASES = [(t.name, {}) for t in TOOLS if t.name not in ("run_sql", "compare_products", "compare_segments", "customize_chart", "ask_user", "discard_result")] + [
     ("compare_products", {"products": ["KEYTRUDA", "opdivo", "TECENTRIQ"]}),
     ("compare_products", {"products": ["TAGRISSO", "ALECENSA"]}),
     ("run_sql", {"sql": "select product, count(*) n from fact_drug_event group by 1 order by n desc limit 5"}),
@@ -235,6 +235,30 @@ def test_rewind_last_exchange():
     assert conv.api_messages == [] and conv.transcript == [] and conv.pending is None
     with pytest.raises(ValueError, match="nothing to retry"):
         rewind_last_exchange(conv)
+
+
+def test_discard_result_withdraws_the_card():
+    from types import SimpleNamespace
+    from app.agent import _discard
+    h = _history(DECILES, PAYER)
+    block = SimpleNamespace(id="toolu_d", name="discard_result", input={"result_id": "toolu_1", "reason": "Wrong chart."})
+    api, ui = _discard(block, h)
+    assert not api.get("is_error") and ui == {"type": "withdraw", "id": "toolu_d", "target": "toolu_1",
+                                               "reason": "Wrong chart.", "title": h[1]["title"]}
+    assert h[1]["withdrawn"]["reason"] == "Wrong chart."
+    # withdrawn results are skipped when editing "the latest chart"
+    spec, d = _custom(h, [{"op": "labels", "show": False}])
+    assert d["params"]["source"] == "toolu_0"
+    bad = SimpleNamespace(id="toolu_e", name="discard_result", input={"result_id": "nope", "reason": "x"})
+    assert _discard(bad, h)[0]["is_error"]
+
+
+def test_customize_source_by_title():
+    h = _history(("list_products", {}), DECILES)
+    spec, d = _custom(h, [{"op": "highlight", "values": ["KEYTRUDA"]}], source="Patients by product")
+    assert d["params"]["source"] == "toolu_0"          # not the latest (deciles) chart
+    with pytest.raises(ValueError, match="no single chart result"):
+        run_tool("customize_chart", {"ops": [{"op": "labels", "show": False}], "source": "nonexistent"}, history=h)
 
 
 if __name__ == "__main__":

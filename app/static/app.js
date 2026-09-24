@@ -778,6 +778,7 @@ function handleEvent(ev, m) {
     case "tool_start": m.toolStart(ev); break;
     case "tool_result": m.toolResult(ev); break;
     case "ask": m.ask(ev); break;
+    case "withdraw": m.withdraw(ev); break;
     case "error": m.error(ev.message); break;
     case "done":
       if (ev.conversation) $("#convTitle").textContent = ev.conversation.title;
@@ -896,11 +897,23 @@ function createAssistantMsg() {
         if (ev.ok && ev.result) li.appendChild(el("code", null, paramText(ev.result.params)));
         if (!ev.ok) li.appendChild(el("span", "s-err", ev.error));
       }
-      if (ev.ok && !ev.result.meta?.internal) { cards.appendChild(renderCard(ev.result)); tools.push(ev.result.tool); }
+      if (ev.ok && !ev.result.meta?.internal) {
+        cards.appendChild(resultCard({ ...ev.result, call_id: ev.id }));
+        tools.push(ev.result.tool);
+      }
       scrollDown();
     },
     error(msg) {
       body.appendChild(el("div", "error-box", msg));
+    },
+    withdraw(ev) {
+      const li = stepEls[ev.id];
+      if (li) {
+        li.className = "step ok withdrew";
+        li.appendChild(el("code", null, `“${ev.title || ev.target}”`));
+      }
+      const card = document.querySelector(`.card[data-call-id="${CSS.escape(ev.target)}"]`);
+      if (card) withdrawCard(card, ev.reason);
     },
     ask(ev) {
       asked = ev;
@@ -929,11 +942,13 @@ function createAssistantMsg() {
       for (const s of turn.steps || []) {
         const li = el("li", "step " + (s.ok === false ? "err" : "ok"));
         li.append(el("span", "s-ic"), el("span", null, s.label));
-        li.appendChild(s.ok === false ? el("span", "s-err", s.error || "failed") : el("code", null, paramText(s.input)));
+        li.appendChild(s.ok === false ? el("span", "s-err", s.error || "failed")
+          : el("code", null, s.withdrew ? `“${s.withdrew}”` : paramText(s.input)));
+        if (s.withdrew) li.classList.add("withdrew");
         steps.appendChild(li);
       }
       updateCount();
-      for (const r of turn.results || []) if (!r.meta?.internal) cards.appendChild(renderCard(r));
+      for (const r of turn.results || []) if (!r.meta?.internal) cards.appendChild(resultCard(r));
       if (turn.ask) api.ask(turn.ask);
       md = turn.text || "";
       render();
@@ -1276,6 +1291,34 @@ function askTypedAnswer(text) {
 }
 
 // ---------------------------------------------------------------- result cards
+// Every card carries its result id (so the agent can withdraw it) and shows a withdrawn state if it was.
+function resultCard(r) {
+  const card = renderCard(r);
+  if (r.call_id) card.dataset.callId = r.call_id;
+  if (r.withdrawn) withdrawCard(card, r.withdrawn.reason);
+  return card;
+}
+
+function withdrawCard(card, reason) {
+  if (card.classList.contains("withdrawn")) return;
+  card.classList.add("withdrawn");
+  const bar = el("div", "wd-banner");
+  const icon = el("span", "wd-icon");
+  icon.innerHTML = svgIcon("M9 14L4 9l5-5M4 9h11a5 5 0 0 1 0 10h-4");
+  const text = el("span", "wd-text");
+  const title = card.querySelector(".card-title")?.textContent || "This result";
+  text.append(el("b", null, "Withdrawn by CIQ"), el("span", null, ` · ${title}. ${reason}`));
+  const toggle = el("button", "wd-toggle", "Show anyway");
+  toggle.type = "button";
+  toggle.addEventListener("click", () => {
+    const on = card.classList.toggle("wd-show");
+    toggle.textContent = on ? "Hide" : "Show anyway";
+    if (on) requestAnimationFrame(() => window.dispatchEvent(new Event("resize")));
+  });
+  bar.append(icon, text, toggle);
+  card.prepend(bar);
+}
+
 function actionButton(icon, label, onClick) {
   const b = el("button", "card-act icon");
   b.type = "button";

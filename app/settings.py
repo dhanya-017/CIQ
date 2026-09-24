@@ -3,6 +3,21 @@ import os
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
+
+
+def _load_dotenv(path: Path) -> None:
+    """Load KEY=VALUE lines from .env into the environment (real environment variables win)."""
+    if not path.exists():
+        return
+    for line in path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if line and not line.startswith("#") and "=" in line:
+            k, v = line.split("=", 1)
+            os.environ.setdefault(k.strip(), v.strip().strip('"').strip("'"))
+
+
+_load_dotenv(ROOT.parent / ".env")
+
 STATIC_DIR = ROOT / "static"
 CONVERSATION_DIR = ROOT.parent / "Data" / "conversations"
 

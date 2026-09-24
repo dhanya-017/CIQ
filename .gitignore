@@ -1,5 +1,16 @@
-# Data: claims (patient-level), warehouse and saved conversations - never commit
-Data/
+# Data: claims (patient-level), warehouse and saved conversations - never commit.
+# Only the folder layout (.gitkeep) and Data/README.md are tracked.
+Data/*
+!Data/README.md
+!Data/master/
+!Data/real_data/
+!Data/warehouse/
+!Data/conversations/
+Data/master/*
+Data/real_data/*
+Data/warehouse/*
+Data/conversations/*
+!Data/*/.gitkeep
 
 # Generated outputs that embed data aggregates
 docs/tool_gallery.html
@@ -17,6 +28,7 @@ venv/
 # Local env / secrets
 .env
 *.env
+!.env.example
 
 # OS / editor
 .DS_Store

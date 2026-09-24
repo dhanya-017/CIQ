@@ -17,7 +17,18 @@ ciq/tools/analytics.py  ── one Python tool per question (calls fn_*, adds ch
 ciq/tools/registry.py   ── Claude tool-use schemas + run_tool() dispatcher
 ```
 
-## Quick start
+## Getting started (new developers)
+
+1. Clone the repo.
+2. Put `claims_master.parquet` in `Data/master/` (see [Data/README.md](Data/README.md)).
+3. Run `.\setup.ps1` (Windows) or `./setup.sh` (macOS/Linux).
+4. Start the app with `.\run.ps1` or `./run.sh`.
+5. If anything fails, run `python scripts/doctor.py` for a step-by-step check with fixes.
+
+The full walkthrough is in [docs/DEVELOPER.md](docs/DEVELOPER.md): architecture, how a request flows through
+the system, and how to add a drug, add an analysis, change business rules, or debug.
+
+## Quick start (manual)
 
 ```bash
 pip install -r requirements.txt

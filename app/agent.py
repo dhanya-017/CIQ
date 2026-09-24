@@ -33,7 +33,7 @@ TOOL_LABELS = {
     "treatments_by_line": "Ranking treatments by line", "dx_around_index": "Profiling diagnoses",
     "persistency": "Estimating persistency", "hcp_market_concentration": "Decile-ing treating HCPs",
     "hcp_product_share_deciles": "Decile-ing HCPs by brand share", "run_sql": "Running a custom query",
-    "compare_products": "Comparing brands side by side",
+    "compare_products": "Comparing brands side by side", "customize_chart": "Customising the chart",
 }
 
 
@@ -64,6 +64,10 @@ claims data, then explaining what the numbers mean for the brand.
 - If the user asks for a chart the standard tools don't draw (another chart type, breakdown or metric), use run_sql
   with `chart`. If the chart call fails, read the reason, fix the SQL or chart spec and retry. When it succeeds, check
   the "chart shown to the user" summary against the question and redraw if it doesn't answer it.
+- When the user asks to change a chart already shown (highlight, colours, a range such as "deciles 1-5" or
+  "Mar to May", a target line, bar vs line, sorting, labels), call customize_chart on it instead of re-running the
+  analysis; put all requested edits in one call. Respect exact colours and ranges the user names. After a chart edit,
+  reply in one or two sentences unless the user asked a question.
 - Never mention internal tool or function names to the user; suggest next steps as questions they can ask.
 - Use markdown: short paragraphs, bold key figures, bullet lists; at most H3 headings, in sentence case
   (e.g. "KEYTRUDA share by HCP decile", not "KEYTRUDA HCP Market-Share Deciles"). Be concise."""
@@ -86,8 +90,12 @@ def _check_input(tool, args) -> str | None:
             return f"{k} must be a boolean"
         if t == "object" and not isinstance(v, dict):
             return f"{k} must be an object"
-        if t == "array" and not (isinstance(v, list) and all(isinstance(x, str) for x in v)):
+        if t == "array" and not isinstance(v, list):
+            return f"{k} must be a list"
+        if t == "array" and spec.get("items", {}).get("type") == "string" and not all(isinstance(x, str) for x in v):
             return f"{k} must be a list of strings"
+        if t == "array" and spec.get("items", {}).get("type") == "object" and not all(isinstance(x, dict) for x in v):
+            return f"{k} must be a list of objects"
         if "enum" in spec and v not in spec["enum"]:
             return f"{k} must be one of {spec['enum']}"
     missing = [r for r in tool.required if r not in args]
@@ -112,13 +120,13 @@ class Agent:
         self.system = [{"type": "text", "text": _system_prompt(), "cache_control": {"type": "ephemeral"}}]
         self.tools = _tool_defs()
 
-    async def _execute(self, block) -> tuple[dict, dict]:
+    async def _execute(self, block, history: list[dict]) -> tuple[dict, dict]:
         """Run one tool call. Returns (tool_result block for the API, UI event)."""
         tool = _TOOLS_BY_NAME.get(block.name)
         err = f"unknown tool {block.name}" if tool is None else _check_input(tool, block.input)
         if err is None:
             try:
-                res = await run_in_threadpool(run_tool, block.name, block.input)
+                res = await run_in_threadpool(run_tool, block.name, block.input, history)
                 ui = {"type": "tool_result", "id": block.id, "name": block.name, "ok": True,
                       "result": await run_in_threadpool(res.to_dict, 500)}
                 return {"type": "tool_result", "tool_use_id": block.id, "content": res.to_llm_text()}, ui
@@ -185,7 +193,8 @@ class Agent:
                 for b in tool_uses:
                     turn["steps"].append({"id": b.id, "name": b.name, "label": TOOL_LABELS.get(b.name, b.name),
                                           "input": b.input})
-                outcomes = await asyncio.gather(*(self._execute(b) for b in tool_uses))
+                history = [r for t in conv.transcript if t.get("role") == "assistant" for r in t.get("results", [])]
+                outcomes = await asyncio.gather(*(self._execute(b, history) for b in tool_uses))
                 for api_block, ui_event in outcomes:
                     for s in turn["steps"]:
                         if s["id"] == ui_event["id"]:

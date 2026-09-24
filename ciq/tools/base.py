@@ -121,6 +121,10 @@ class ToolResult:
             parts.append("## insights\n" + "\n".join(f"- {i}" for i in insights))
         if self.caveats:
             parts.append("## caveats\n" + "\n".join(f"- {c}" for c in self.caveats))
+        if self.charts:
+            parts.append("## charts shown (customize_chart `chart` index)\n" + "\n".join(
+                f"{i}: {c.get('title', {}).get('text', '') if isinstance(c.get('title'), dict) else c.get('title', '')}"
+                for i, c in enumerate(self.charts)))
         if self.meta.get("chart_summary"):
             parts.append("## chart shown to the user\n" + self.meta["chart_summary"])
         return "\n".join(parts)

@@ -11,7 +11,7 @@ import numpy as np
 import pandas as pd
 
 from ciq import config
-from ciq.tools import charts
+from ciq.tools import charts, customize
 from ciq.tools.base import ToolResult, call_fn, coverage, kpi, pct, query, resolve_product
 
 LINE_BUCKET_NOTE = ("Lines of therapy are derived from observed claims only (regimen window "
@@ -835,6 +835,44 @@ def _custom_chart(df: pd.DataFrame, chart: dict) -> tuple[dict | None, str | Non
                           y_sort=list(dict.fromkeys(d[y].astype(str)))), None
 
 
+def customize_chart(ops: list[dict], source: str | None = None, chart: int = 0, title: str | None = None, *,
+                    history: list[dict]) -> ToolResult:
+    """Edit a chart already shown in this conversation (highlight, recolour, filter a range, reference lines...)."""
+    with_charts = [r for r in history if r.get("charts")]
+    if not with_charts:
+        raise ValueError("there is no chart in this conversation yet: run an analysis (or run_sql with a chart) first")
+    if source:
+        matches = [r for r in with_charts if r.get("call_id") == source]
+        if not matches:
+            known = "; ".join(f"{r.get('call_id')}: {r['title']}" for r in with_charts[-8:])
+            raise ValueError(f"no chart result with id '{source}'. Recent chart results: {known}")
+        src = matches[-1]
+    else:
+        src = with_charts[-1]   # default: the latest chart shown
+    specs = src["charts"]
+    if not 0 <= chart < len(specs):
+        listing = " | ".join(f"source={r.get('call_id')} chart={i}: {c.get('title', {}).get('text', '?')}"
+                             for r in with_charts[-6:] for i, c in enumerate(r["charts"]))
+        raise ValueError(f"chart index {chart} out of range for '{src['title']}' (it has {len(specs)} chart(s)). "
+                         f"Charts available in this conversation: {listing}")
+    spec, changes = customize.apply(specs[chart], ops)
+    # editing an already-customised chart: keep its earlier edits in the description
+    history_of_edits = (src.get("meta", {}).get("changes") or []) if src.get("tool") == "customize_chart" else []
+    all_changes = history_of_edits + changes
+    if title:
+        spec.setdefault("title", {})["text"] = title
+    rows = [{k: v for k, v in r.items() if not k.startswith("_")} for r in spec["data"]["values"]]
+    return ToolResult(
+        tool="customize_chart", title=title or spec.get("title", {}).get("text") or src["title"],
+        subtitle="Customised: " + "; ".join(all_changes),
+        params={"source": src.get("call_id"), "chart": chart, "ops": ops},
+        data=pd.DataFrame(rows), charts=[spec], caveats=src.get("caveats", []),
+        meta={"changes": all_changes,
+              "chart_summary": f"Edited chart {chart} of '{src['title']}': {'; '.join(changes)}"
+                               + (f" (on top of earlier edits: {'; '.join(history_of_edits)})" if history_of_edits else "")
+                               + f". Now shows: {customize.describe(spec)}."})
+
+
 def run_sql(sql: str, max_rows: int = 200, chart: dict | None = None) -> ToolResult:
     s = sql.strip().rstrip(";")
     if ";" in s or not re.match(r"^\s*(select|with|from|describe|summarize)\b", s, re.I) or _FORBIDDEN.search(s):
@@ -852,10 +890,17 @@ def run_sql(sql: str, max_rows: int = 200, chart: dict | None = None) -> ToolRes
             cols = ", ".join(f"{c} ({df[c].dtype})" for c in df.columns)
             raise ValueError(f"Chart not drawn: {err}. The query returned {len(df)} rows with columns: {cols}. "
                              "Fix the chart spec or the SQL and call run_sql again.")
+        if chart.get("customize"):
+            try:
+                spec, changes = customize.apply(spec, chart["customize"])
+            except ValueError as e:
+                raise ValueError(f"Chart customisation failed: {e}. Fix chart.customize and call run_sql again.") from None
+            meta["changes"] = changes
         specs.append(spec)
         if len(df) >= max_rows:
             caveats.append(f"The chart may be truncated: the query hit the {max_rows}-row cap.")
-        meta["chart_summary"] = _chart_summary(df, chart)
+        meta["chart_summary"] = _chart_summary(df, chart) + (
+            f" Customised: {'; '.join(meta['changes'])}. Now shows: {customize.describe(spec)}." if meta.get("changes") else "")
     title = (chart or {}).get("title") if specs else None
     return ToolResult(tool="run_sql", title=title or "Ad-hoc query", params={"sql": sql, **({"chart": chart} if chart else {})},
                       subtitle="Custom chart built from an ad-hoc query of the claims warehouse" if specs else None,

@@ -13,6 +13,7 @@ from typing import Callable
 
 from ciq import config
 from ciq.tools import analytics as a
+from ciq.tools import customize
 from ciq.tools.base import ToolResult
 
 PRODUCT = {"type": "string", "description": f"Brand/product name (e.g. KEYTRUDA, OPDIVO, TAGRISSO, CARBOPLATIN) or molecule "
@@ -29,6 +30,7 @@ class Tool:
     properties: dict
     handler: Callable[..., ToolResult]
     required: tuple[str, ...] = ()
+    needs_history: bool = False   # handler gets history=[earlier result dicts in the conversation]
 
     def schema(self) -> dict:
         return {"name": self.name, "description": self.description,
@@ -52,6 +54,26 @@ def _schema_hint() -> str:
 
 def _int(desc: str, default: int, minimum: int = 1) -> dict:
     return {"type": "integer", "description": f"{desc} Default {default}.", "minimum": minimum}
+
+
+CUSTOMIZE_OPS = {"type": "array", "description": (
+    "Edits applied in order. Each item is an object with `op` and its parameters:\n"
+    "- highlight: values [..], optional color, field. Calls out categories/series; the rest are greyed.\n"
+    "- color: color (whole chart; clears earlier highlights, so put highlight after it) or map {value: colour}, "
+    "optional field. Colours: hex or names (red, green, "
+    "blue, orange, gold, navy, purple, teal, gray...).\n"
+    "- filter: values [..] to keep, or exclude [..], or from/to (a range of categories, dates like '2026-03' or "
+    "'Mar 2026', or numbers; optional field, default the x/category axis), or top N (optional by).\n"
+    "- axis_range: axis x|y, min, max (numeric axes; percent axes use fractions).\n"
+    "- reference_line: axis (default y), value, optional label, color (a target, average or threshold).\n"
+    "- band: axis (default x), from, to, optional label, color (shade a period or range).\n"
+    "- chart_type: type bar|line|area|point.\n"
+    "- sort: by value|label|custom, order asc|desc, values [..] for custom.\n"
+    "- labels: show true|false (value labels on marks).\n"
+    "- title: text, subtitle.  - format: format percent|percent1|integer|number, optional axis.\n"
+    "- legend: position top|bottom|right|left|none.  - size: height (120-900 px)."),
+    "items": {"type": "object", "properties": {"op": {"type": "string", "enum": list(customize.OPS)}},
+              "required": ["op"]}}
 
 
 TOOLS: list[Tool] = [
@@ -166,9 +188,23 @@ TOOLS: list[Tool] = [
                                  "description": "bar only: order bars by value, or 'none' to keep SQL order. Default desc."},
                         "horizontal": {"type": "boolean", "description": "Bars along y (long labels). Default: auto."},
                         "normalize": {"type": "boolean", "description": "stacked_bar: 100% stacks."},
-                        "highlight": {"type": "string", "description": "bar only: x value to call out."}},
+                        "highlight": {"type": "string", "description": "bar only: x value to call out."},
+                        "customize": {**CUSTOMIZE_OPS, "description": "Optional styling edits applied to the new "
+                                      "chart (same ops as customize_chart), e.g. highlight, colours, reference lines."}},
                     "required": ["type", "x", "y"]}},
          a.run_sql, required=("sql",)),
+    Tool("customize_chart", "Change a chart already shown in this conversation, from any analysis: highlight "
+         "categories or series, recolour, show only a range (e.g. deciles 1-5, Mar-May 2026, top 5), set the axis "
+         "range, add a target/reference line or shaded band, switch bar/line/area, sort, toggle value labels, retitle. "
+         "Use this (not a re-run) whenever the user asks to change how a chart looks or what part of it is shown. "
+         "Combine several edits in one call. The result says what the edited chart now shows; check it. On an "
+         "error, read the listed fields/values, fix the ops and retry.",
+         {"ops": CUSTOMIZE_OPS,
+          "source": {"type": "string", "description": "tool_use id of the earlier call whose chart to edit (its "
+                     "result lists the charts). Omit to edit the most recent chart."},
+          "chart": _int("Index of the chart within that result (see its 'charts shown' list), 0-based.", 0, 0),
+          "title": {"type": "string", "description": "Optional new chart title."}},
+         a.customize_chart, required=("ops",), needs_history=True),
 ]
 
 _BY_NAME = {t.name: t for t in TOOLS}
@@ -178,9 +214,12 @@ def anthropic_tools() -> list[dict]:
     return [t.schema() for t in TOOLS]
 
 
-def run_tool(name: str, arguments: dict | None = None) -> ToolResult:
+def run_tool(name: str, arguments: dict | None = None, history: list[dict] | None = None) -> ToolResult:
+    """history: earlier tool results (to_dict() + call_id) in the conversation, for tools that edit them."""
     if name not in _BY_NAME:
         raise KeyError(f"Unknown tool {name!r}. Available: {sorted(_BY_NAME)}")
     tool = _BY_NAME[name]
     args = {k: v for k, v in (arguments or {}).items() if k in tool.properties and v is not None}
+    if tool.needs_history:
+        args["history"] = history or []
     return tool.handler(**args)

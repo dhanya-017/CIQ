@@ -12,7 +12,7 @@ import pytest
 
 from ciq.tools.registry import TOOLS, anthropic_tools, run_tool
 
-CASES = [(t.name, {}) for t in TOOLS if t.name not in ("run_sql", "compare_products")] + [
+CASES = [(t.name, {}) for t in TOOLS if t.name not in ("run_sql", "compare_products", "customize_chart")] + [
     ("compare_products", {"products": ["KEYTRUDA", "opdivo", "TECENTRIQ"]}),
     ("compare_products", {"products": ["TAGRISSO", "ALECENSA"]}),
     ("run_sql", {"sql": "select product, count(*) n from fact_drug_event group by 1 order by n desc limit 5"}),
@@ -100,6 +100,106 @@ def test_chart_summary_flags_percent_mismatch():
     res = run_tool("run_sql", {"sql": "select age_group, 100.0 * count(*) / sum(count(*)) over () pct from dim_patient group by 1",
                                "chart": {"type": "bar", "x": "age_group", "y": "pct", "y_format": "percent"}})
     assert "WARNING" in res.meta["chart_summary"]
+
+
+def _history(*calls):
+    """Tool results as the agent stores them (to_dict() + call_id)."""
+    return [run_tool(n, args).to_dict() | {"call_id": f"toolu_{i}"} for i, (n, args) in enumerate(calls)]
+
+
+DECILES = ("hcp_product_share_deciles", {"product": "KEYTRUDA"})
+TREND = ("run_sql", {"sql": "select date_trunc('month', service_date) as month_start, product, count(distinct patient_id) "
+                            "patients from fact_drug_event where product in ('KEYTRUDA', 'OPDIVO', 'CARBOPLATIN') "
+                            "group by 1, 2 order by 1",
+                     "chart": {"type": "line", "x": "month_start", "y": "patients", "color": "product", "title": "Trend"}})
+PAYER = ("payer_mix", {"product": "KEYTRUDA"})
+
+
+def _custom(history, ops, **kw):
+    res = run_tool("customize_chart", {"ops": ops, **kw}, history=history)
+    d = res.to_dict()
+    json.dumps(d)
+    assert "Now shows" in res.to_llm_text()
+    return d["charts"][0], d
+
+
+def test_customize_highlight_and_recolor_bars():
+    spec, d = _custom(_history(DECILES), [{"op": "highlight", "values": ["3", "4"], "color": "red"}])
+    enc = spec["layer"][0]["encoding"]["color"]
+    assert enc["condition"]["test"]["oneOf"] == ["3", "4"] and enc["condition"]["value"] == "#e34948"
+    assert "highlighted 3, 4" in d["subtitle"]
+
+
+def test_customize_filter_range_on_categories():
+    spec, _ = _custom(_history(DECILES), [{"op": "filter", "from": 1, "to": 5}])
+    assert sorted(r["decile"] for r in spec["data"]["values"]) == ["1", "2", "3", "4", "5"]
+
+
+def test_customize_series_on_line_chart():
+    h = _history(TREND)
+    spec, _ = _custom(h, [{"op": "highlight", "values": ["keytruda"]},
+                          {"op": "filter", "from": "Mar 2026", "to": "2026-05"},
+                          {"op": "reference_line", "value": 200, "label": "Target"}])
+    months = {r["month_start"][:7] for r in spec["data"]["values"]}
+    assert months == {"2026-03", "2026-04", "2026-05"}
+    scale = spec["layer"][0]["encoding"]["color"]["scale"]
+    assert scale["range"][scale["domain"].index("KEYTRUDA")] != "#d3d8de"
+    assert all(c == "#d3d8de" for dmn, c in zip(scale["domain"], scale["range"]) if dmn != "KEYTRUDA")
+    assert any(l["mark"]["type"] == "rule" for l in spec["layer"])
+
+
+def test_customize_picks_source_and_chart_index():
+    h = _history(DECILES, PAYER)
+    spec, d = _custom(h, [{"op": "color", "map": {"Decile 1": "gold"}}], source="toolu_0", chart=1)
+    assert d["params"]["source"] == "toolu_0"
+    assert "#c98b27" in spec["encoding"]["color"]["scale"]["range"]
+    spec, _ = _custom(h, [{"op": "chart_type", "type": "bar"}], chart=1)   # latest = payer mix, chart 1 = top payers
+    assert spec["layer"][0]["mark"]["type"] == "bar"
+
+
+def test_customize_edits_accumulate():
+    h = _history(DECILES)
+    first = run_tool("customize_chart", {"ops": [{"op": "reference_line", "value": 0.34}]}, history=h).to_dict()
+    h.append(first | {"call_id": "toolu_edit"})
+    second = run_tool("customize_chart", {"ops": [{"op": "color", "color": "teal"}]}, history=h).to_dict()
+    assert "reference line" in second["subtitle"] and "teal" in second["subtitle"]
+    assert any(l["mark"]["type"] == "rule" for l in second["charts"][0]["layer"])
+
+
+def test_customize_misc_ops():
+    spec, _ = _custom(_history(DECILES), [{"op": "sort", "by": "value", "order": "asc"}, {"op": "labels", "show": False},
+                                          {"op": "axis_range", "axis": "y", "min": 0, "max": 0.6},
+                                          {"op": "band", "from": "1", "to": "3", "label": "Core"},
+                                          {"op": "title", "text": "New title"}, {"op": "legend", "position": "none"},
+                                          {"op": "size", "height": 420}, {"op": "format", "format": "percent1"},
+                                          {"op": "chart_type", "type": "line"}])
+    assert spec["title"]["text"] == "New title" and spec["height"] == 420
+    assert not any(l["mark"]["type"] == "text" and "field" in l["encoding"].get("text", {}) for l in spec["layer"])
+
+
+@pytest.mark.parametrize("ops,reason", [
+    ([{"op": "highlight", "values": ["Decile 99"]}], "could not find"),
+    ([{"op": "filter", "from": 20, "to": 30, "field": "decile"}], "leaves no data|not a value"),
+    ([{"op": "color", "color": "notacolour!"}], "not a colour"),
+    ([{"op": "sparkle"}], "must be one of"),
+    ([{"op": "reference_line"}], "needs `value`"),
+])
+def test_customize_errors_go_back_to_model(ops, reason):
+    with pytest.raises(ValueError, match=reason):
+        run_tool("customize_chart", {"ops": ops}, history=_history(DECILES))
+
+
+def test_customize_needs_a_chart():
+    with pytest.raises(ValueError, match="no chart"):
+        run_tool("customize_chart", {"ops": [{"op": "labels", "show": False}]}, history=[])
+
+
+def test_run_sql_chart_with_customize():
+    res = run_tool("run_sql", {"sql": "select age_group, count(*) patients from dim_patient group by 1",
+                               "chart": {"type": "bar", "x": "age_group", "y": "patients",
+                                         "customize": [{"op": "highlight", "values": ["70-79"], "color": "gold"},
+                                                       {"op": "sort", "by": "label", "order": "asc"}]}})
+    assert "Customised" in res.meta["chart_summary"]
 
 
 if __name__ == "__main__":

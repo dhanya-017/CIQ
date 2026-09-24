@@ -18,7 +18,7 @@ from starlette.concurrency import run_in_threadpool
 from app import settings, store
 from app.agent import Agent, add_panel_result, rewind_last_exchange
 from ciq.tools import command_center as cc
-from ciq.tools import compare
+from ciq.tools import compare, journey
 from ciq import methodology
 from ciq import config as ciq_config
 from ciq.tools.base import coverage, json_safe, query, resolve_product
@@ -77,7 +77,8 @@ class CompareRequest(BaseModel):
 
 class CohortRequest(BaseModel):
     name: str = Field(min_length=1, max_length=80)
-    hcp_ids: list[str] = Field(min_length=1, max_length=20000)
+    hcp_ids: list[str] = Field(default_factory=list, max_length=20000)
+    patient_ids: list[str] = Field(default_factory=list, max_length=20000)
     definition: str = ""
     product: str | None = None
 
@@ -175,7 +176,7 @@ async def compare_options(product: str | None = None):
         return {"product": p, "context": {"market": ciq_config.INDICATION_NAME, "start": cov["data_start"],
                                           "end": cov["data_end"], "patients": cov["n_patients"]},
                 "hcp": compare.hcp_cohort_options(p),
-                "patient": [{"id": k, "label": v[0]} for k, v in compare.PATIENT_COHORTS.items()],
+                "patient": compare.patient_cohort_options(),
                 "months": [{"id": str(m), "label": m.strftime("%b %Y")} for m in months],
                 "geography": {"available": False, "reason": "Needs a geography source (HCP address or patient ZIP3). "
                               "The IQVIA extract has ZIP codes on pharmacy claims only (about 10% of patients)."}}
@@ -216,16 +217,72 @@ async def run_compare(req: CompareRequest):
 
 @app.get("/api/cohorts")
 async def cohorts():
-    return [{k: v for k, v in c.items() if k != "hcp_ids"} | {"size": len(c["hcp_ids"])} for c in compare.list_cohorts()]
+    return [{k: v for k, v in c.items() if k not in ("hcp_ids", "patient_ids")} | {"size": compare.cohort_size(c)}
+            for c in compare.list_cohorts()]
 
 
 @app.post("/api/cohorts")
 async def create_cohort(req: CohortRequest):
     try:
-        c = await run_in_threadpool(compare.save_cohort, req.name, req.hcp_ids, req.definition, req.product)
+        c = await run_in_threadpool(compare.save_cohort, req.name, req.hcp_ids, req.definition, req.product,
+                                    req.patient_ids)
     except ValueError as e:
         raise HTTPException(400, str(e))
-    return {k: v for k, v in c.items() if k != "hcp_ids"} | {"size": len(c["hcp_ids"])}
+    return {k: v for k, v in c.items() if k not in ("hcp_ids", "patient_ids")} | {"size": compare.cohort_size(c)}
+
+
+# ---------------------------------------------------------------------------- patient journey
+async def _journey(fn, *args):
+    try:
+        return await run_in_threadpool(fn, *args)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
+@app.get("/api/journey")
+async def journey_overview(product: str | None = None, scope: str = "market"):
+    d = await _journey(journey.overview, product, scope)
+    d["method"] = methodology.describe("patient_journey", {"product": d["context"]["product"], "scope": scope})
+    d["meta"] = {"coverage": coverage()}
+    d["caveats"] = [f"{s}: {t}" for s, t in journey.STATUS_DEF.items()]
+    return d
+
+
+@app.get("/api/journey/pathway")
+async def journey_pathway(scope: str = "market", product: str | None = None):
+    from ciq.tools import pathway
+
+    def build():
+        pw = pathway.standard()
+        if scope == "brand":
+            pw["filter"] = f"brand:{resolve_product(product)}"
+        return {"type": "pathway", **pathway.compute(pw), "custom": False, "rules": pw["rules"]}
+    return json_safe(await _journey(build))
+
+
+@app.get("/api/journey/transition")
+async def journey_transition(a: str, b: str, product: str | None = None, scope: str = "market"):
+    return await _journey(journey.transition, a, b, product, scope)
+
+
+@app.get("/api/journey/patients")
+async def journey_patients(filter: str = "all", scope: str = "market", product: str | None = None):
+    return await _journey(journey.patients, filter, 300, scope, product)
+
+
+@app.get("/api/journey/patient/{pid}")
+async def journey_patient(pid: str):
+    return await _journey(journey.patient, pid)
+
+
+@app.get("/api/journey/segments")
+async def journey_segments(product: str | None = None):
+    return await _journey(lambda: journey.segment_options(resolve_product(product)))
+
+
+@app.get("/api/journey/compare")
+async def journey_compare(a: str, b: str, product: str | None = None):
+    return await _journey(journey.compare_journeys, a, b, product)
 
 
 def _sse(ev: dict) -> str:

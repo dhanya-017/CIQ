@@ -13,7 +13,7 @@ from typing import Callable
 
 from ciq import config
 from ciq.tools import analytics as a
-from ciq.tools import compare, customize
+from ciq.tools import compare, customize, journey, pathway
 from ciq.tools.base import ToolResult
 
 PRODUCT = {"type": "string", "description": f"Brand/product name (e.g. KEYTRUDA, OPDIVO, TAGRISSO, CARBOPLATIN) or molecule "
@@ -160,6 +160,57 @@ TOOLS: list[Tool] = [
           "product": {**PRODUCT, "description": "Focus brand whose share is compared (hcp/time/patient kinds). "
                       f"Defaults to {config.DEFAULT_PRODUCT}."}},
          compare.compare_segments, required=("kind", "a", "b")),
+    Tool("patient_journey", "Patient journey analytics for newly diagnosed NSCLC patients: how patients move along the "
+         "reference pathway Suspicion -> Imaging -> Specialist consult -> Tissue diagnosis -> Diagnosis confirmed -> "
+         "Biomarker testing -> Treatment start, where they fall out, how long transitions take, journey status (On "
+         "pathway / Delayed / Deviated / Stalled / In progress) and similarity to the reference pathway. Use for "
+         "questions about patient journeys, diagnosis-to-treatment time, untreated/stalled patients, biomarker "
+         "testing before treatment, drop-off between stages, or comparing journeys between groups.",
+         {"view": {"type": "string", "enum": ["overview", "transition", "compare", "brand"], "description":
+                   "overview: stage funnel, status, drop-offs, patterns. transition: one step A -> B in depth (time "
+                   "buckets, reached vs not-reached profile, associated HCPs). compare: two journey cohorts. brand: "
+                   "where the brand is chosen - time from diagnosis to brand start, and brand share of first-line "
+                   "starts by biomarker testing, treatment timing, journey pattern and payer."},
+          "scope": {"type": "string", "enum": ["market", "brand"], "description": "overview/transition: market = all "
+                    "newly diagnosed patients (default); brand = only patients whose first line includes the brand."},
+          "a": {"type": "string", "description": "transition: stage A (" + " | ".join(journey.KEYS) + "). compare: "
+                "cohort A - all | brand:<product> | status:<On pathway|Delayed|Deviated|Stalled|In progress> | "
+                "sim:<High|Moderate|Low> | payer:<Medicare|Commercial|Medicaid> | age:<lt65|65plus> | "
+                "biomarker:<yes|no> | saved:<patient cohort id>."},
+          "b": {"type": "string", "description": "transition: stage B. compare: cohort B, same format as a."},
+          "product": PRODUCT}, journey.patient_journey),
+    Tool("pathway_diagram", "Draw the patient pathway as a diagram of stage boxes, each showing the claims codes that "
+         "define the stage (with patient counts), linked by arrows showing how many patients move on and how fast. "
+         "Use it when the user wants to see the journey with its codes, or to change how the pathway is defined "
+         "(add/remove codes, add/remove/rename/reorder/merge stages, change the time windows or the stalled threshold, "
+         "restrict the cohort) or to highlight a stage or drop-off. Omit source to draw the standard pathway; pass "
+         "source (the result id of an earlier pathway diagram) with ops to edit it. Edits to codes, stages, rules or "
+         "cohort CHANGE THE NUMBERS: the pathway is recomputed and labelled as custom, with its differences from the "
+         "standard. Codes are validated against the claims; an invalid code fails with the reason - fix and retry.",
+         {"source": {"type": "string", "description": "Result id of an earlier pathway_diagram to edit (or its title). "
+                     "Omit for the standard pathway."},
+          "ops": {"type": "array", "description": "Edits, applied in order. Code syntax: dx:<ICD-10> (trailing * = "
+                  "prefix, e.g. dx:R91*, dx:C34.90), px:<CPT/HCPCS> (e.g. px:71250), drug:<product> or "
+                  "drug:LUNG_SYSTEMIC. Stages are referenced by key or label.",
+                  "items": {"type": "object", "properties": {
+                      "op": {"type": "string", "enum": ["add_codes", "remove_codes", "add_stage", "remove_stage",
+                                                        "rename_stage", "move_stage", "merge_stages", "set_window",
+                                                        "set_rule", "filter", "highlight", "show_codes"]},
+                      "stage": {"type": "string"}, "codes": {"type": "array", "items": {"type": "string"}},
+                      "label": {"type": "string"}, "after": {"type": "string", "description": "stage key, or 'start'"},
+                      "before": {"type": "string"}, "stages": {"type": "array", "items": {"type": "string"}},
+                      "window": {"type": "string", "enum": ["workup", "after"], "description": "workup = diagnosis "
+                                 "-workup_before..+workup_after days; after = from workup_after days before diagnosis on. "
+                                 "Default for add_stage: workup if placed before diagnosis, else after"},
+                      "rule": {"type": "string", "enum": ["workup_before", "workup_after", "stall_days"]},
+                      "value": {"type": "number"},
+                      "cohort": {"type": "string", "description": "journey cohort, e.g. payer:Medicare, "
+                                 "brand:KEYTRUDA, age:65plus, status:Stalled, saved:<id>, all"},
+                      "transition": {"type": "string", "description": "for highlight, e.g. 'diagnosis>biomarker'"},
+                      "n": {"type": "integer", "description": "show_codes: codes per box (1-12)"}},
+                      "required": ["op"]}},
+          "title": {"type": "string"}},
+         pathway.pathway_diagram, needs_history=True),
     Tool("compare_products", "Side-by-side comparison of 3-4 brands/products (for two, prefer compare_segments): scorecard (patients, share, age, payer "
          "mix, line share, combination use, source of business, persistency, prescriber base) plus overlaid charts. "
          "Use for any 'compare', 'vs', 'benchmark against competitors' question. The UI renders an interactive "

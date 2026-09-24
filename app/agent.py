@@ -36,6 +36,7 @@ TOOL_LABELS = {
     "hcp_product_share_deciles": "Decile-ing HCPs by brand share", "run_sql": "Running a custom query",
     "compare_products": "Comparing brands side by side", "customize_chart": "Customising the chart",
     "ask_user": "Asking you a question", "discard_result": "Withdrawing a wrong result", "compare_segments": "Comparing side A and side B",
+    "patient_journey": "Tracing patient journeys", "pathway_diagram": "Drawing the pathway",
 }
 
 
@@ -61,6 +62,17 @@ claims data, then explaining what the numbers mean for the brand.
 - For a two-way comparison (brand vs brand, HCP cohort vs cohort or benchmark, period vs period, patient cohort
   vs cohort) call compare_segments: it returns what differs, where the gap comes from and the HCPs behind it. For 3-4
   brands at once call compare_products (an interactive side-by-side panel).
+- For patient journey questions (drop-off between stages, time to treatment, untreated or stalled patients,
+  biomarker testing before treatment, journey comparison between brands or groups) call patient_journey. Lead with
+  where patients fall out of the expected pathway, in plain language (not "vectors"); statuses are data definitions,
+  not clinical judgements, and differences between groups are associations, not causes.
+  To show the journey as boxes with the codes that define each stage, or to change the definition (codes, stages,
+  windows, stalled threshold, cohort), call pathway_diagram; edit an earlier diagram with source=<its result id> and
+  ops. Say plainly when an edit changes the numbers versus the standard pathway. If the user asks for a code you
+  are unsure of, ask (ask_user) rather than guess.
+  Structure journey answers as: Answer (one or two sentences) -> Evidence (the numbers) -> Journey (where in the
+  pathway it happens) -> Cohort (the patient group worth acting on, which the user can save from the Patient
+  Journey view).
 - When asked why two sides differ, work from the comparison's drivers (HCP deciles, payer and treatment mix, HCP
   movement), dig deeper with other tools or run_sql if needed, and answer: what is different, where it is
   concentrated, the most likely observable drivers, and what the brand team could do about it. Separate what the

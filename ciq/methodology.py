@@ -218,6 +218,61 @@ METHODS: dict[str, dict] = {
         reasoning="Turns a side-by-side view into a diagnosis: quantify the gap, locate it, and hand the brand team "
                   "a target list.",
         source="ciq/tools/compare.py (fact_drug_event, dim_patient, lot_line, fn_hcp_product_share, fn_product_trend)"),
+    "patient_journey": dict(
+        question="Where are newly diagnosed patients falling out of the expected pathway?",
+        steps=["Cohort: patients whose first lung-cancer diagnosis (ICD-10 C34) falls at least 60 days after the "
+               "start of the data, so their pre-diagnosis work-up is observable (newly diagnosed).",
+               "Each patient is summarised as a pathway vector: the first observed date of each of the 7 reference "
+               "stages. Work-up stages (suspicion, imaging, consult, tissue) count from 90 days before to 30 days "
+               "after diagnosis; biomarker testing and treatment count from 30 days before diagnosis onward.",
+               "Journey map: patients reaching each stage. Transition A → B: of the patients who reached A, how many "
+               "have B, how fast (median days, time buckets), and who has not reached B after 60+ days of follow-up.",
+               "Journey status is assigned from the observed dates (see definitions); it is a data definition, "
+               "not a clinical judgement.",
+               "Similarity to the reference pathway = the number of reference stages observed in reference order "
+               "(longest common subsequence of the observed stage order and the reference) / 7. High >= 6/7, "
+               "Moderate 4-5/7, Low <= 3/7.",
+               "Journey patterns: each patient is assigned to one data-derived archetype, checked in this order: "
+               "too early to tell, complete reference pathway, alternative order (treated before diagnosis), "
+               "diagnostic delay (>30 days from first suspicion/imaging to diagnosis), diagnosis without treatment, "
+               "treated without an observed biomarker test, treated after tissue diagnosis, treated with limited "
+               "work-up. The most common stage sequences are shown within each.",
+               "Associated HCPs: the HCP on the patient's stage-A claim (e.g. the diagnosing HCP), with that HCP's "
+               "lung systemic volume and brand share.",
+               "Scope: Market = every newly diagnosed patient. Brand = only those whose first line of therapy "
+               "includes the brand (their journey up to and including the start of that line).",
+               "Brand in the journey: brand share of first-line starts = patients whose first line includes the "
+               "brand / newly diagnosed patients with a first line of systemic therapy, split by biomarker testing "
+               "before treatment, treatment timing status, journey pattern and payer; time to brand start = days "
+               "from diagnosis to the first claim for the brand."],
+        definitions=["On pathway: treated within 30 days of diagnosis, not before diagnosis or tissue diagnosis.",
+                     "Delayed: treated more than 30 days after diagnosis.",
+                     "Deviated: treatment observed more than 7 days before the diagnosis or tissue-diagnosis stage.",
+                     "Stalled: no treatment 60+ days after diagnosis (with that much follow-up in the data).",
+                     "In progress: diagnosed less than 60 days before the data end: too early to judge.",
+                     "Treatment start = first lung systemic therapy, lung resection or radiation therapy.",
+                     "Specialist consult is a proxy (new-patient visit codes 99204/99205); specialty is not in the "
+                     "data. Stages not billed in these claims (e.g. lab tests billed elsewhere) look missing."],
+        reasoning="Diagnosis-to-treatment is where brand opportunity is created or lost: a patient who never "
+                  "starts treatment, or starts late or without biomarker testing, is a patient no brand reaches or "
+                  "one routed away from biomarker-driven therapy. Differences between groups are observed "
+                  "associations, not causes.",
+        source="ciq/tools/journey.py (fact_dx_event, fact_px_event, fact_drug_event, dim_patient, lot_line_drug)"),
+    "pathway_diagram": dict(
+        question="How do newly diagnosed patients move through the pathway, and which codes define each stage?",
+        steps=["Cohort: newly diagnosed NSCLC patients (first C34 diagnosis 60+ days after the data start), "
+               "optionally filtered.",
+               "Each stage is marked by the codes in its box. A patient reaches a stage on the first claim with one "
+               "of those codes inside the stage's window: work-up stages from workup_before days before to "
+               "workup_after days after diagnosis; later stages from workup_after days before diagnosis onward.",
+               "The codes shown in a box are the most common ones, with the number of patients who have each in the "
+               "window (a patient can have several).",
+               "Arrows: of the patients at a stage, the share also observed at the next stage and the median days "
+               "between them; 'not observed' counts only patients with stall_days of follow-up after the stage.",
+               "Complete pathway = every stage observed, in the pathway's order."],
+        reasoning="Makes the journey definition visible and editable: stakeholders can agree on exactly which "
+                  "claims mark each step before debating the numbers.",
+        source="ciq/tools/pathway.py (fact_dx_event, fact_px_event, fact_drug_event)"),
     "run_sql": dict(
         question="A custom question answered with an ad-hoc query.",
         steps=["The model wrote the read-only SQL below against the claims warehouse.",
@@ -249,4 +304,15 @@ def describe(tool: str, params: dict, meta: dict | None = None) -> dict:
             out["steps"].append((meta or {})["chart_summary"])
     if tool == "customize_chart":
         out["steps"] += [f"Edit: {c}" for c in (meta or {}).get("changes", [])]
+    if tool == "pathway_diagram":
+        pw = (meta or {}).get("pathway") or {}
+        out["definitions"] = [f"{st['label']} ({st['window']}): {', '.join(st['codes'])}" for st in pw.get("stages", [])]
+        if pw.get("rules"):
+            out["definitions"].append("Rules: " + ", ".join(f"{k.replace('_', ' ')} {v} days"
+                                                             for k, v in pw["rules"].items()))
+        out["steps"] += [f"Edit: {c}" for c in (meta or {}).get("changes", [])]
+        out["params"] = {}
+    if tool == "patient_journey":
+        from ciq.tools.journey import STAGES
+        out["definitions"] = [f"{label}: {d}" for _, label, d in STAGES] + out["definitions"]
     return out

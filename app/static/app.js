@@ -82,10 +82,11 @@ async function init() {
     $("#footData").textContent = "Backend unavailable";
     setUser(null);
   }
-  renderWelcome();
   loadHistory();
-  const cid = new URLSearchParams(location.search).get("c");
-  if (cid) openConversation(cid);
+  const params = new URLSearchParams(location.search);
+  if (params.get("view") === "journey") { showView("journey"); return; }
+  renderWelcome();
+  if (params.get("c")) openConversation(params.get("c"));
 }
 
 function bindUI() {
@@ -136,7 +137,7 @@ function bindUI() {
   $("#productSelect").addEventListener("change", (e) => {
     state.product = e.target.value;
     localStorage.setItem("ciq.product", state.product);
-    if (!state.convId) renderWelcome();
+    if (!state.convId && state.view !== "journey") renderWelcome();
   });
 }
 
@@ -650,6 +651,7 @@ function renderHistory() {
 
 function newConversation() {
   if (state.busy) state.controller?.abort();
+  if (state.view === "journey") showView("chat");
   state.convId = null;
   history.replaceState(null, "", "/");
   $("#messages").replaceChildren();
@@ -667,6 +669,7 @@ async function openConversation(id) {
   const res = await fetch(`/api/conversations/${id}`);
   if (!res.ok) return;
   const conv = await res.json();
+  if (state.view === "journey") showView("chat");
   state.convId = conv.id;
   history.replaceState(null, "", `/?c=${conv.id}`);
   $("#convTitle").textContent = conv.title;
@@ -1359,7 +1362,9 @@ function renderCard(res) {
   tabs.setAttribute("role", "tablist");
   const views = {};
   const body = el("div", "card-body");
-  const names = res.charts?.length ? ["Chart", "Data", "Notes"] : ["Data", "Notes"];
+  const visual = res.meta?.visual;
+  const names = visual?.type === "pathway" ? ["Diagram", "Data", "Notes"]
+    : res.charts?.length ? ["Chart", "Data", "Notes"] : ["Data", "Notes"];
   for (const n of names) {
     const b = el("button", "tab", n);
     b.type = "button";
@@ -1395,7 +1400,19 @@ function renderCard(res) {
 
   function build(n) {
     const pane = el("div", "pane");
-    if (n === "Chart") {
+    if (n === "Diagram") {
+      if (res.kpis?.length) pane.appendChild(renderKpis(res.kpis));
+      pane.appendChild(renderPathway(visual));
+      const observations = res.observations ?? res.insights ?? [];
+      if (observations.length) {
+        const box = el("div", "card-insights");
+        box.appendChild(el("h4", null, "Key observations"));
+        const ul = el("ul");
+        for (const i of observations) ul.appendChild(el("li", null, i));
+        box.appendChild(ul);
+        pane.appendChild(box);
+      }
+    } else if (n === "Chart") {
       if (res.kpis?.length) pane.appendChild(renderKpis(res.kpis));
       const grid = el("div", "charts");
       // a bar chart + donut pair: give the bar chart more room
@@ -2116,6 +2133,11 @@ function showConnectForm(pl) {
 
 // ---------------------------------------------------------------- follow-up suggestions
 const FOLLOWUPS = {
+  pathway_diagram: ["Highlight the biggest drop-off in the pathway", "Show this pathway for Medicare patients only",
+    "Count patients as stalled after 90 days instead of 60"],
+  patient_journey: ["Why do patients stall between diagnosis and treatment?",
+    "How does the journey of {p} first-line patients compare with all treated patients?",
+    "Which HCPs have the most diagnosed patients who never start treatment?"],
   compare_segments: ["Why are they different?", "Which HCPs should we target to close the gap?",
     "Compare {p} with its top competitor"],
   hcp_product_share_deciles: ["Which HCP deciles have the biggest {p} share opportunity?",

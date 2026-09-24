@@ -34,6 +34,10 @@
         <span class="si-ic"><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M12 7v10M7 12h10" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
         <span class="si-label">New analysis</span>
       </button>
+      <button class="side-item side-journey" id="btnJourney" type="button" data-tip="Patient Journey">
+        <span class="si-ic"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M5 19a2 2 0 1 0 0-4 2 2 0 0 0 0 4zM19 9a2 2 0 1 0 0-4 2 2 0 0 0 0 4zM7 17h5a3 3 0 0 0 0-6h-1a3 3 0 0 1 0-6h6" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+        <span class="si-label">Patient Journey</span>
+      </button>
       <label class="side-item side-search" id="searchRow" data-tip="Search">
         <span class="si-ic"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14zM20 20l-3.5-3.5" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
         <input type="search" class="si-input" id="historySearch" placeholder="Search analyses" aria-label="Search analyses" autocomplete="off">
@@ -141,6 +145,8 @@
       <div class="messages" id="messages"></div>
     </section>
 
+    <section class="journey" id="journey" aria-live="polite" hidden></section>
+
     <footer class="composer-wrap">
       <div class="followups" id="followups" hidden></div>
       <section class="ask" id="askPanel" role="dialog" aria-labelledby="askQuestion" hidden>
@@ -244,5 +250,6 @@
   </div>
 </div>
 <script src="/static/app.js"></script>
+<script src="/static/journey.js"></script>
 </body>
 </html>

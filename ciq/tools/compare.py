@@ -8,6 +8,7 @@ Sides can be brands, HCP cohorts, patient cohorts or time periods. Every compari
 from __future__ import annotations
 
 import json
+import re
 import time
 import uuid
 from datetime import date
@@ -47,16 +48,29 @@ def list_cohorts() -> list[dict]:
     return json.loads(f.read_text(encoding="utf-8")) if f.exists() else []
 
 
-def save_cohort(name: str, hcp_ids: list[str], definition: str, product: str | None = None) -> dict:
-    ids = sorted({str(h) for h in hcp_ids if h})
+def save_cohort(name: str, hcp_ids: list[str] | None, definition: str, product: str | None = None,
+                patient_ids: list[str] | None = None) -> dict:
+    """Save an HCP cohort (hcp_ids) or a patient cohort (patient_ids, e.g. from a patient journey pattern)."""
+    kind = "patient" if patient_ids else "hcp"
+    ids = sorted({str(h) for h in (patient_ids if patient_ids else hcp_ids or []) if h})
     if not name.strip() or not ids:
-        raise ValueError("a cohort needs a name and at least one HCP")
-    cohort = {"id": uuid.uuid4().hex[:10], "name": name.strip()[:80], "kind": "hcp", "hcp_ids": ids,
+        raise ValueError(f"a cohort needs a name and at least one {'patient' if kind == 'patient' else 'HCP'}")
+    cohort = {"id": uuid.uuid4().hex[:10], "name": name.strip()[:80], "kind": kind, f"{kind}_ids": ids,
               "definition": definition[:300], "product": product, "created_at": time.time()}
     f = _cohort_file()
     f.parent.mkdir(parents=True, exist_ok=True)
     f.write_text(json.dumps(list_cohorts() + [cohort], indent=1), encoding="utf-8")
     return cohort
+
+
+def cohort_size(c: dict) -> int:
+    return len(c.get("patient_ids") or c.get("hcp_ids") or [])
+
+
+def patient_cohort_options() -> list[dict]:
+    return [{"id": k, "label": v[0]} for k, v in PATIENT_COHORTS.items()] + [
+        {"id": f"saved:{c['id']}", "label": c["name"], "detail": c["definition"], "saved": True}
+        for c in list_cohorts() if c.get("kind") == "patient"]
 
 
 # ---------------------------------------------------------------------------- side resolution
@@ -78,7 +92,7 @@ def hcp_cohort_options(product: str) -> list[dict]:
             {"id": "nonusers", "label": f"HCPs not using {product}", "detail": "treat lung cancer, no brand volume"}]
     opts += [{"id": f"decile:{d}", "label": f"Decile {d} ({product} volume)"} for d in range(1, 11)]
     opts += [{"id": f"saved:{c['id']}", "label": c["name"], "detail": c["definition"], "saved": True}
-             for c in list_cohorts()]
+             for c in list_cohorts() if c.get("kind", "hcp") == "hcp"]
     return opts
 
 
@@ -106,9 +120,9 @@ def _resolve_hcps(spec: str, product: str) -> tuple[str, list[str], str]:
         label, d = f"Decile {n}", f"HCPs in {product} volume decile {n} (decile 1 = highest)"
     elif spec.startswith("saved:"):
         cid = spec.split(":", 1)[1]
-        c = next((c for c in list_cohorts() if c["id"] == cid), None)
+        c = next((c for c in list_cohorts() if c["id"] == cid and c.get("kind", "hcp") == "hcp"), None)
         if not c:
-            raise ValueError(f"saved cohort '{cid}' not found")
+            raise ValueError(f"saved HCP cohort '{cid}' not found")
         return c["name"], c["hcp_ids"], c["definition"]
     else:
         raise ValueError(f"unknown HCP cohort '{spec}'. Options: all, high_high, high_low, nonusers, decile:1-10, "
@@ -330,6 +344,12 @@ def _segment(kind: str, spec: str, product: str) -> dict:
         return {"label": label, "definition": d, "pred": "list_contains($ids, hcp_id)", "params": {"ids": ids},
                 "hcp_ids": ids, "months": None}
     if kind == "patient":
+        if spec.startswith("saved:"):
+            c = next((c for c in list_cohorts() if c["id"] == spec[6:] and c.get("kind") == "patient"), None)
+            if not c:
+                raise ValueError(f"saved patient cohort '{spec[6:]}' not found")
+            return {"label": c["name"], "definition": c["definition"], "pred": "list_contains($pids, patient_id)",
+                    "params": {"pids": c["patient_ids"]}, "months": None}
         if spec not in PATIENT_COHORTS:
             raise ValueError(f"unknown patient cohort '{spec}'. Options: {list(PATIENT_COHORTS)}")
         label, cond = PATIENT_COHORTS[spec]
@@ -350,7 +370,8 @@ def _seg_query(seg: dict, sql: str, product: str, suffix: str) -> pd.DataFrame:
         pred = pred.replace(f"${k}", f"${k}{suffix}")
     sql = sql.replace("{pred}", pred)
     params = {f"{k}{suffix}": v for k, v in seg["params"].items()} | {"p": product}
-    return query(sql, {k: v for k, v in params.items() if f"${k}" in sql})   # duckdb rejects unused params
+    used = set(re.findall(r"\$(\w+)", sql))
+    return query(sql, {k: v for k, v in params.items() if k in used})   # duckdb rejects unused params
 
 
 def _seg_metrics(seg: dict, product: str, sfx: str) -> dict:

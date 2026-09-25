@@ -32,8 +32,9 @@ LOT_RULES: list[tuple[str, str]] = [
      "(Keytruda Qlex, Opdivo Qvantig, Tecentriq Hybreza, Rybrevant Faspro) map to their reference molecule; "
      "paclitaxel and nab-paclitaxel are treated as one drug."),
 ]
-LOT_SCOPE = ("Lines are built from lung-cancer systemic therapies only (supportive care and other-tumour drugs are "
-             "ignored), from observed claims. Line 1 = first line seen in the data window, which may not be the "
+LOT_SCOPE = ("Lines are built from all anticancer drugs in pharmacy and medical claims, including drugs billed as "
+             "J-code procedures (supportive care such as G-CSF, bone agents and antiemetics is ignored), for patients "
+             f"with a lung-cancer diagnosis ({config.COHORT_DX_LIKE}), from observed claims. Line 1 = first line seen in the data window, which may not be the "
              "patient's true first line. A line ends at its last administration + days supply, or the day before "
              "the next line starts.")
 
@@ -56,8 +57,9 @@ METHODS: dict[str, dict] = {
         question="Which products are in the data?",
         steps=["Groups drug administrations/fills by product with drug class and therapy group.",
                "Counts distinct patients and administrations per product."],
-        definitions=["Therapy group LUNG_SYSTEMIC = lung-cancer systemic therapies; they define the market and "
-                     "lines of therapy. SUPPORTIVE and OTHER_ONCOLOGY products are listed but excluded from both."],
+        definitions=["Therapy group LUNG_SYSTEMIC = lung-cancer systemic therapies; they define the market. Lines "
+                     "of therapy use LUNG_SYSTEMIC and OTHER_ONCOLOGY (all anticancer drugs); SUPPORTIVE products are "
+                     "listed but excluded from both."],
         reasoning="Resolves brand names and identifies competitors within a drug class.",
         source="fn_product_catalog"),
     "market_incidence_prevalence": dict(
@@ -117,6 +119,24 @@ METHODS: dict[str, dict] = {
                "the look-back."],
         reasoning="Separates growth from new patients, competitive switches and add-on use.",
         source="fn_sob_events, fn_source_of_business"),
+    "io_brand_dynamics": dict(
+        question="Where do Keytruda, Opdivo and Tecentriq claims come from, and how many are new vs repeat?",
+        steps=["Final IO cohort: after lines of therapy are built from all anticancer drugs, only Keytruda, Keytruda "
+               "Qlex, Opdivo, Opdivo Qvantig, Tecentriq and Tecentriq Hybreza claims are kept (fact_io_claim).",
+               "Each claim is compared with the patient's previous IO-brand claim: none before (or the same brand after "
+               f"a {config.LOT_GAP_DAYS}+ day gap) = Initiated; a different brand = Switched from Competitor; same brand "
+               "IV then subcutaneous = <Brand> to <Brand SC>; otherwise Continuing.",
+               "Claim types: every claim is TRx; NBRx = new to brand; NRx = new prescription (NBRx, re-initiation, "
+               "IV-to-SC switch, first claim of the brand in a new line, pharmacy fill with refill code 0); RRx = "
+               "TRx - NRx.",
+               "Counts are grouped by calendar month or ISO week (weeks start Monday)."],
+        definitions=["IV and subcutaneous forms are the same molecule, so they never advance a line (LOT rule 7), but "
+                     "SOB reports the switch separately.",
+                     f"Claims in the first {config.SOB_WASHOUT_DAYS} days of data can't see earlier IO use: 'Initiated' "
+                     "there includes patients already on therapy (exclude_washout drops them)."],
+        reasoning="Tracks brand growth by source (new starts, competitive wins, SC conversion) and prescription "
+                  "dynamics (NBRx/NRx/TRx), the standard brand-performance view.",
+        source="fact_io_claim, fn_io_sob, fn_io_claim_types"),
     "payer_mix": dict(
         question="How are the brand's claims paid?",
         steps=["Groups product claims (or patients) by payment type (Commercial, Medicare, Medicare Advantage, "

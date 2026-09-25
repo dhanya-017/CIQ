@@ -1,17 +1,20 @@
 # CIQ Platform — Data & Tool Layer
 
 Data layer for an agentic brand and patient analytics platform built on the claims data in
-`Data/` (medical claims (MX) and pharmacy claims (RX), lung cancer / NSCLC market, 10,000 patients).
+`Data/` (medical claims (MX) and pharmacy claims (RX), lung cancer / NSCLC market, ~10,000 patients).
 The claims are loaded into a DuckDB warehouse. Each business question is answered by a **stored function**
 (a DuckDB table macro), and each stored function is wrapped as an **agent tool**. A tool returns data,
 Vega-Lite chart specs, headline insights and data caveats.
 
 ```
-Data/master/claims_master.parquet ──► build_warehouse.py ──► Data/warehouse/ciq.duckdb
-                                                             ├── ref_*   drug dictionary, code map, coverage
+Data/real_data/master_nsclc.csv ─┐
+Data/real_data/mx_nsclc.csv ─────┼─► build_warehouse.py ──► Data/warehouse/ciq.duckdb
+ciq/reference/icd10cm.csv ───────┘   (ciq/build/sources.py)    ├── src_*   complete input extract, cleaned
+                                                             ├── ref_*   drug dictionary, descriptions, enrichment
                                                              ├── fact_*  drug / dx / procedure events
                                                              ├── dim_*   patient, hcp
                                                              ├── lot_*   lines of therapy
+                                                             ├── fact_io_claim  final IO cohort + SOB + TRx/NRx/NBRx
                                                              └── fn_*    stored functions (tools)
 ciq/tools/analytics.py  ── one Python tool per question (calls fn_*, adds chart + insights + caveats)
 ciq/tools/registry.py   ── Claude tool-use schemas + run_tool() dispatcher
@@ -20,7 +23,7 @@ ciq/tools/registry.py   ── Claude tool-use schemas + run_tool() dispatcher
 ## Getting started (new developers)
 
 1. Clone the repo.
-2. Put `claims_master.parquet` in `Data/master/` (see [Data/README.md](Data/README.md)).
+2. Put `master_nsclc.csv` and `mx_nsclc.csv` in `Data/real_data/` (see [Data/README.md](Data/README.md)).
 3. Run `.\setup.ps1` (Windows) or `./setup.sh` (macOS/Linux).
 4. Start the app with `.\run.ps1` or `./run.sh`.
 5. If anything fails, run `python scripts/doctor.py` for a step-by-step check with fixes.
@@ -32,9 +35,9 @@ the system, and how to add a drug, add an analysis, change business rules, or de
 
 ```bash
 pip install -r requirements.txt
-python -m ciq.build.build_warehouse        # full build (~20 s)
+python -m ciq.build.build_warehouse        # full build (~2 min)
 python -m ciq.build.install_procedures     # reinstall only the fn_* after editing ciq/sql/procedures.sql
-python -m pytest tests -q                  # 29 smoke tests
+python -m pytest tests -q                  # tools, business rules, LOT rules, charts
 python scripts/tool_gallery.py [PRODUCT]   # docs/tool_gallery.html: every tool's charts, for review
 ```
 
@@ -96,6 +99,7 @@ DuckDB rule: any argument that has a default must be passed by name (`p_x := ...
 | HCP deciles: is the market concentrated or scattered (pre vs post) | `hcp_market_concentration` | `fn_hcp_market_volume`, `fn_hcp_market_deciles` |
 | HCP deciles by brand market share | `hcp_product_share_deciles` | `fn_hcp_product_share`, `fn_hcp_product_share_deciles` |
 | Brand uptake and competitive share | `product_trend`, `market_share` | `fn_product_trend`, `fn_market_share` |
+| IO brand SOB (Initiated / Continuing / Switched from Competitor / IV-to-SC) and TRx-NRx-RRx-NBRx by month or week | `io_brand_dynamics` | `fn_io_sob`, `fn_io_claim_types` |
 | Discovery and ad-hoc questions | `data_overview`, `list_products`, `run_sql` (read-only) | `fn_product_catalog` |
 
 **The brand is a parameter in every tool** (`product`). It accepts a brand or a molecule name and is
@@ -113,13 +117,32 @@ case-insensitive. The default is `KEYTRUDA`, the largest brand in this NSCLC dat
   To add a drug, add a row to the CSV and rebuild.
 - **Events** are deduplicated to one row per patient, day and molecule. Only paid pharmacy claims are kept.
   Infused drugs are given a standard cycle length as their days supply (`default_days_supply`).
-- **Lines of therapy** (`ciq/build/lot.py`):
-  - Every drug started within 28 days of the line start is part of that line's regimen.
-  - Starting a new drug after that window begins a new line.
-  - Swapping carboplatin↔cisplatin or paclitaxel↔nab-paclitaxel is not a new line.
-  - Dropping drugs (maintenance) is not a new line.
-  - A gap of more than 90 days followed by the same drugs counts as re-treatment of the same line.
-  - The parameters are in `ciq/config.py`.
+- **Input and cohort** (`ciq/build/sources.py`, `CIQ_SOURCE`):
+  - Default input `Data/real_data/master_nsclc.csv` (15 columns), loaded completely into `src_master_nsclc`
+    (IDs cleaned of `.0`, NDCs padded to 11 digits, the `renderring_provider_id` typo column merged).
+  - Fields the app needs but the extract lacks are enriched: **age** and **billing provider** from
+    `mx_nsclc.csv`, **diagnosis descriptions** from the CMS ICD-10-CM file (`scripts/fetch_icd10cm.py`), and
+    the v1 master as a fallback.
+  - **Cohort:** only patients with a diagnosis `LIKE '%C34%'` are kept.
+- **Lines of therapy** (`ciq/build/lot.py`), built from **all anticancer drugs** (pharmacy NDCs and J-code
+  drugs billed as procedures; supportive care excluded):
+  1. A gap of **120+ days** between administrations is line advancement (even if the same drugs resume).
+  2. Adding a new drug is line advancement.
+  3. Removing a drug from the regimen is not.
+  4. A new drug after the first **28 days and 2 cycles** is line advancement.
+  5. The first 28 days and 2 cycles define the regimen; changes inside that window don't advance the line.
+  6. Changing to a completely new product is line advancement.
+  7. Biosimilars and different forms (subcutaneous) are not: drugs are compared by molecule.
+  - Parameters are in `ciq/config.py`; the rules are tested in `tests/test_lot_rules.py`.
+- **Final IO cohort** (`ciq/build/io_cohort.py` → `fact_io_claim`): after lines are built, only Keytruda,
+  Keytruda Qlex, Opdivo, Opdivo Qvantig, Tecentriq and Tecentriq Hybreza records are kept, each with its line.
+  - **SOB** (per claim, vs the patient's previous IO claim): **Initiated** (no earlier IO claim, or the same
+    brand after a 120+ day gap), **Switched from Competitor** (previous claim a different brand), **Keytruda to
+    Keytruda Qlex** / **Opdivo to Opdivo Qvantig** / **Tecentriq to Tecentriq Hybreza** (IV then SC), else
+    **Continuing**. Reported by month or week.
+  - **Claim types:** TRx = every claim; NBRx = new to brand; NRx = NBRx, re-initiations, IV-to-SC switches, the
+    brand's first claim in a new line, and pharmacy fills with refill code 0; RRx = TRx - NRx.
+  - Claims in the first 90 days of data are flagged `in_washout` (earlier IO use can't be seen).
 - **Index date** is the patient's first claim for the product. Pre and post windows are measured from it.
 - **Source of business** (per claim or per patient):
   - Continuing: the brand was used within the grace period before.
@@ -132,6 +155,15 @@ case-insensitive. The default is `KEYTRUDA`, the largest brand in this NSCLC dat
   - `hcp_count`: every decile has the same number of HCPs.
   - `volume`: every decile holds about 10% of the volume.
   - The HCP is the rendering provider on medical claims and the prescriber on pharmacy claims.
+
+## Rolling back to v1 (claims_master.parquet)
+
+The build before the master_nsclc migration is preserved three ways:
+- **Code:** git tag `v1-claims-master` (`git checkout v1-claims-master`).
+- **Data:** `Data/warehouse/backup/ciq_v1_claims_master_2026-09-25.duckdb`; copy it over `Data/warehouse/ciq.duckdb`
+  (with the app stopped) to serve the old numbers immediately.
+- **Build:** `CIQ_SOURCE=claims_master python -m ciq.build.build_warehouse` rebuilds from the v1 master with the
+  current code.
 
 ## Data limitations (the tools report these in `caveats`)
 

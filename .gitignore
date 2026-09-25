@@ -3,12 +3,17 @@
 Data/*
 !Data/README.md
 !Data/master/
+!Data/real_data/
 !Data/warehouse/
 !Data/conversations/
 Data/master/*
+Data/real_data/*
 Data/warehouse/*
 Data/conversations/*
 !Data/*/.gitkeep
+
+# Notebooks embed patient-level outputs
+*.ipynb
 
 # Generated outputs that embed data aggregates
 docs/tool_gallery.html

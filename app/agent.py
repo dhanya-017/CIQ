@@ -35,6 +35,7 @@ TOOL_LABELS = {
     "persistency": "Estimating persistency", "hcp_market_concentration": "Decile-ing treating HCPs",
     "hcp_product_share_deciles": "Decile-ing HCPs by brand share", "run_sql": "Running a custom query",
     "compare_products": "Comparing brands side by side", "customize_chart": "Customising the chart",
+    "io_brand_dynamics": "Classifying IO source of business",
     "ask_user": "Asking you a question", "discard_result": "Withdrawing a wrong result", "compare_segments": "Comparing side A and side B",
     "patient_journey": "Tracing patient journeys", "pathway_diagram": "Drawing the pathway",
 }
@@ -99,7 +100,7 @@ claims data, then explaining what the numbers mean for the brand.
   row. When the user answers, carry out the original request with their choice.
 - Reason like a pharma commercial analyst: say why a number matters for the brand (positioning, access,
   targeting, competitive threat), not just what it is. When you interpret line-based results, name the LOT rule
-  that drives them if it matters (e.g. a 60-day gap creates a new line).
+  that drives them if it matters (e.g. a {ciq_config.LOT_GAP_DAYS}-day gap creates a new line).
 - Every tool result starts with "[result id: ...]". To change an earlier chart, pass that id (or the chart's title)
   as customize_chart's `source`; when several charts are on screen, never rely on the default. If you realise a
   result you produced is wrong (wrong chart edited, wrong brand, period or filter), call discard_result on it with a

@@ -1,8 +1,9 @@
-﻿"""Build the CIQ analytics warehouse (DuckDB) from the enriched claims master.
+﻿"""Build the CIQ analytics warehouse (DuckDB) from the configured claims extract (ciq.config.SOURCE).
 
 Layers
 ------
-ref_*     curated reference data (drug dictionary, data coverage)
+src_*     the complete source extract, cleaned (v2: src_master_nsclc)
+ref_*     curated reference data (drug dictionary, code descriptions, enrichment, data coverage)
 fact_*    event-level facts, one row per patient/date/entity (deduplicated)
 dim_*     conformed dimensions (patient, hcp)
 lot_*     derived line-of-therapy tables
@@ -20,7 +21,9 @@ import duckdb
 import pandas as pd
 
 from ciq import config
+from ciq.build.io_cohort import build_io_cohort
 from ciq.build.lot import build_lines_of_therapy
+from ciq.build.sources import stage
 
 
 def log(msg: str) -> None:
@@ -44,12 +47,12 @@ def build_drug_map(con: duckdb.DuckDBPyConnection, ref: pd.DataFrame) -> pd.Data
     product name / NDC description wins. Unmapped J9xxx codes fall back to a generic
     'OTHER ANTINEOPLASTIC' so no chemo line is silently dropped.
     """
-    sigs = con.sql(f"""
+    sigs = con.sql("""
         select distinct
                case when source_table = 'RX' then 'NDC' else code_system end as code_system,
                case when source_table = 'RX' then null else code end as code,
                code_short_desc, prod_name, ndc_desc
-        from read_parquet('{config.MASTER_PARQUET.as_posix()}')
+        from stg_claims
         where is_line_anchor = 'Y' and code_type in ('PX', 'RX')
           and (source_table = 'RX' or code_system = 'HCPCS' or prod_name is not null)
     """).df()
@@ -99,10 +102,8 @@ def build() -> None:
     if config.WAREHOUSE_DB.exists():
         config.WAREHOUSE_DB.unlink()
     con = duckdb.connect(str(config.WAREHOUSE_DB))
-    master = config.MASTER_PARQUET.as_posix()
-
-    log("Staging claims master")
-    con.execute(f"create temp view stg_claims as select * from read_parquet('{master}')")
+    stage_info = stage(con, log)
+    product_form_sql = _product_form_sql()
 
     # ---------------- reference ----------------
     log("Loading drug reference + building drug map")
@@ -116,7 +117,7 @@ def build() -> None:
 
     # ---------------- fact_drug_event ----------------
     log("Building fact_drug_event")
-    con.execute("""
+    con.execute(f"""
         create table fact_drug_event as
         with lines as (
             select c.patient_id, c.service_date, c.source_table as source,
@@ -130,13 +131,14 @@ def build() -> None:
                    c.most_freq_rx_mop as payment_type_raw,
                    c.days_supply as rx_days_supply,
                    coalesce(c.dx_unit_of_svc_amt, c.quantity) as units,
-                   c.svc_bill_amt, c.place_of_svc_cd, c.rx_claim_type, c.sob as rx_sob
+                   c.svc_bill_amt, c.place_of_svc_cd, c.rx_claim_type, c.sob as rx_sob, c.refill_code
             from stg_claims c
             where c.is_line_anchor = 'Y' and c.code_type in ('PX', 'RX')
               and (c.source_table = 'MX' or c.rx_claim_type = 'PD')   -- paid pharmacy claims only
         ),
         mapped as (
-            select l.*, m.molecule, m.product, m.drug_class, m.therapy_group, m.default_days_supply
+            select l.*, m.molecule, m.product, m.drug_class, m.therapy_group, m.default_days_supply,
+                   {product_form_sql} as product_form
             from lines l
             join ref_drug_code_map m
               on m.code_system = l.code_system
@@ -157,6 +159,8 @@ def build() -> None:
                sum(svc_bill_amt) as billed_amt,
                any_value(place_of_svc_cd) as place_of_svc_cd,
                any_value(rx_sob) as rx_sob,
+               min(refill_code) as refill_code,
+               arg_max(product_form, product_form <> product) as product_form,   -- SC form wins if both same day
                count(*) as n_claim_lines
         from mapped
         group by patient_id, service_date, molecule, product, drug_class, therapy_group
@@ -280,9 +284,9 @@ def build() -> None:
     # ---------------- lines of therapy ----------------
     log("Building lines of therapy")
     data_start, data_end = con.execute("select data_start, data_end from ref_data_coverage").fetchone()
-    events = con.execute("""
+    events = con.execute(f"""
         select patient_id, service_date, molecule, product, drug_class, days_supply
-        from fact_drug_event where therapy_group = 'LUNG_SYSTEMIC'
+        from fact_drug_event where therapy_group in {tuple(config.LOT_THERAPY_GROUPS)!r}
         order by patient_id, service_date
     """).df()
     lot, lot_drug = build_lines_of_therapy(events, pd.Timestamp(data_start), pd.Timestamp(data_end))
@@ -302,6 +306,10 @@ def build() -> None:
     """)
     log(f"  {len(lot):,} lines for {lot['patient_id'].nunique():,} patients")
 
+    # ---------------- final IO cohort: SOB + claim types ----------------
+    log("Building fact_io_claim (IO brands only, with SOB and TRx/NRx/RRx/NBRx)")
+    build_io_cohort(con, log)
+
     # ---------------- stored procedures (table macros) ----------------
     log("Installing stored functions")
     install_procedures(con)
@@ -313,16 +321,32 @@ def build() -> None:
                 f"('lot_regimen_window_cycles', '{config.LOT_REGIMEN_WINDOW_CYCLES}'),"
                 f"('clean_start_days', '{config.CLEAN_START_DAYS}'),"
                 f"('indication_dx_prefix', '{config.INDICATION_DX_PREFIX}'),"
-                f"('default_product', '{config.DEFAULT_PRODUCT}')"
+                f"('default_product', '{config.DEFAULT_PRODUCT}'),"
+                f"('lot_therapy_groups', '{','.join(config.LOT_THERAPY_GROUPS)}'),"
+                f"('cohort_dx_like', '{config.COHORT_DX_LIKE if stage_info['source'] == 'master_nsclc' else 'n/a'}'),"
+                f"('sob_washout_days', '{config.SOB_WASHOUT_DAYS}'),"
+                + ",".join(f"('{k}', '{v}')" for k, v in stage_info.items()) +
                 ") t(param, value)")
     con.execute("checkpoint")
 
-    for t in ["ref_drug", "ref_drug_code_map", "fact_drug_event", "fact_dx_event", "fact_px_event",
-              "dim_patient", "dim_hcp", "lot_line", "lot_line_drug"]:
+    for t in ["src_master_nsclc", "ref_drug", "ref_drug_code_map", "fact_drug_event", "fact_dx_event", "fact_px_event",
+              "dim_patient", "dim_hcp", "lot_line", "lot_line_drug", "fact_io_claim"]:
+        if not con.execute(f"select count(*) from duckdb_tables() where table_name = '{t}'").fetchone()[0]:
+            continue
         n = con.execute(f"select count(*) from {t}").fetchone()[0]
         log(f"  {t:<20} {n:>12,} rows")
     con.close()
     log(f"Done in {time.time() - t0:.0f}s -> {config.WAREHOUSE_DB}")
+
+
+def _product_form_sql() -> str:
+    """SQL expression naming the product form: the SC form for IO brands billed as SC, else the product."""
+    whens = []
+    for brand, b in config.IO_BRANDS.items():
+        codes = ", ".join(f"'{c}'" for c in b["sc_codes"])
+        whens.append(f"when m.product = '{brand}' and (l.code in ({codes}) or upper(concat_ws(' ', l.prod_name, "
+                     f"l.ndc_desc)) like '%{b['sc_name']}%') then '{b['sc_form']}'")
+    return "case " + " ".join(whens) + " else m.product end"
 
 
 def install_procedures(con: duckdb.DuckDBPyConnection) -> None:

@@ -13,7 +13,7 @@ from typing import Callable
 
 from ciq import config
 from ciq.tools import analytics as a
-from ciq.tools import compare, customize, journey, pathway
+from ciq.tools import compare, customize, io_brands, journey, pathway
 from ciq.tools.base import ToolResult
 
 PRODUCT = {"type": "string", "description": f"Brand/product name (e.g. KEYTRUDA, OPDIVO, TAGRISSO, CARBOPLATIN) or molecule "
@@ -40,7 +40,7 @@ class Tool:
 def _schema_hint() -> str:
     """Column names of the main tables, so the model can write SQL without a `describe` round trip."""
     tables = ["fact_drug_event", "fact_dx_event", "fact_px_event", "dim_patient", "dim_hcp", "lot_line", "lot_line_drug",
-              "ref_drug"]
+              "ref_drug", "fact_io_claim"]
     try:
         from ciq.tools.base import query
         cols = query("select table_name, string_agg(column_name, ', ' order by ordinal_position) cols "
@@ -211,6 +211,17 @@ TOOLS: list[Tool] = [
                       "required": ["op"]}},
           "title": {"type": "string"}},
          pathway.pathway_diagram, needs_history=True),
+    Tool("io_brand_dynamics", "Source of business and claim types for the IO brands (Keytruda incl. Keytruda Qlex, "
+         "Opdivo incl. Opdivo Qvantig, Tecentriq incl. Tecentriq Hybreza) by month or week: Initiated, Continuing, "
+         "Switched from Competitor, and IV-to-subcutaneous switches (Keytruda to Keytruda Qlex etc.), plus TRx / NRx / "
+         "RRx / NBRx. Use for IO brand SOB, new-to-brand (NBRx), new vs repeat prescriptions, or Qlex/Qvantig/Hybreza "
+         "adoption questions. Prefer this over source_of_business for these three brands.",
+         {"brand": {"type": "string", "description": "KEYTRUDA, OPDIVO, TECENTRIQ (SC forms map to their brand) or ALL "
+                                                     "to compare the three. Default ALL."},
+          "grain": {"type": "string", "enum": ["month", "week"], "description": "Period. Default month."},
+          "exclude_washout": {"type": "boolean", "description": f"Drop claims in the first {config.SOB_WASHOUT_DAYS} "
+                              "days of data, where earlier IO use can't be seen. Default false."}},
+         io_brands.io_brand_dynamics),
     Tool("compare_products", "Side-by-side comparison of 3-4 brands/products (for two, prefer compare_segments): scorecard (patients, share, age, payer "
          "mix, line share, combination use, source of business, persistency, prescriber base) plus overlaid charts. "
          "Use for any 'compare', 'vs', 'benchmark against competitors' question. The UI renders an interactive "

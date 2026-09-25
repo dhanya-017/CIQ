@@ -48,14 +48,54 @@ def check_packages() -> bool:
                   "pip install -r requirements.txt")
 
 
+REQUIRED_NSCLC_COLUMNS = {
+    "claim_id", "patient_id", "svc_dt", "diagnosis_code", "code", "code_description", "rendering_provider_id",
+    "referring_provider_id", "plan_id", "plan_name", "days_supply", "quantity", "refill_code", "source",
+}
+
+
 def check_master() -> bool:
+    """Check the configured input (CIQ_SOURCE) and, for master_nsclc, its enrichment sources."""
     from ciq import config
+    import duckdb
+    con = duckdb.connect()
+    if config.SOURCE == "master_nsclc":
+        p = config.MASTER_NSCLC_CSV
+        if not p.exists():
+            if config.WAREHOUSE_DB.exists():
+                return report(WARN, "Input master_nsclc.csv", f"{p.relative_to(ROOT)} not found - fine at runtime (the app "
+                              "reads only the warehouse); needed only to rebuild it",
+                              "copy master_nsclc.csv into Data/real_data/ if you need to rebuild the warehouse")
+            return report(FAIL, "Input master_nsclc.csv", f"{p.relative_to(ROOT)} not found",
+                          "copy master_nsclc.csv from the secure data share into Data/real_data/ (see Data/README.md), "
+                          "or set CIQ_SOURCE=claims_master to build from the v1 master")
+        cols = {r[0] for r in con.execute(f"describe select * from read_csv('{p.as_posix()}', all_varchar=true, "
+                                          "sample_size=2000)").fetchall()}
+        missing = REQUIRED_NSCLC_COLUMNS - cols
+        ok = report(FAIL if missing else OK, "Input master_nsclc.csv",
+                    f"missing columns: {sorted(missing)}" if missing else f"{len(cols)} columns ({p.stat().st_size / 1e6:,.0f} MB)",
+                    "the file doesn't match the expected 15-column layout - get the current extract")
+        # enrichment sources: not fatal, but features degrade without them
+        report(OK if config.RAW_MX_CSV.exists() else WARN, "Enrichment: raw MX extract",
+               "age + billing provider" if config.RAW_MX_CSV.exists() else f"{config.RAW_MX_CSV.name} not found: no age "
+               "(demographics, age filters) and no billing-provider fallback for HCPs",
+               "copy mx_nsclc.csv into Data/real_data/")
+        report(OK if config.ICD10CM_CSV.exists() else WARN, "Enrichment: ICD-10-CM descriptions",
+               "ciq/reference/icd10cm.csv" if config.ICD10CM_CSV.exists() else "missing: diagnosis descriptions limited",
+               "python scripts/fetch_icd10cm.py")
+        report(OK if config.MASTER_PARQUET.exists() else WARN, "Enrichment: v1 claims master (fallback)",
+               "descriptions/age fallback" if config.MASTER_PARQUET.exists() else "not found: procedure descriptions blank",
+               "optional - copy claims_master.parquet into Data/master/")
+        return ok
     p = config.MASTER_PARQUET
+    if not p.exists() and config.WAREHOUSE_DB.exists():
+        # runtime-only install (e.g. a demo server): the app reads only the warehouse
+        return report(WARN, "Claims master", f"{p.relative_to(ROOT)} not found - fine at runtime (the app reads only "
+                      "the warehouse); needed only to rebuild it",
+                      "copy claims_master.parquet into Data/master/ if you need to rebuild the warehouse")
     if not p.exists():
         return report(FAIL, "Claims master", f"{p.relative_to(ROOT)} not found",
                       "copy claims_master.parquet from the secure data share into Data/master/ (see Data/README.md)")
-    import duckdb
-    con = duckdb.connect()
     cols = {r[0] for r in con.execute(f"describe select * from read_parquet('{p.as_posix()}')").fetchall()}
     missing = REQUIRED_MASTER_COLUMNS - cols
     if missing:
@@ -110,7 +150,8 @@ def check_bedrock() -> None:
 
 def main() -> None:
     skip_bedrock = "--skip-bedrock" in sys.argv
-    print(f"CIQ environment check ({ROOT})\n")
+    from ciq import config
+    print(f"CIQ environment check ({ROOT}) - source: {config.SOURCE}\n")
     check_python()
     if check_packages():
         check_master()

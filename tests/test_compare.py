@@ -36,7 +36,8 @@ def test_brands():
 def test_hcp_cohorts_use_volume_share():
     d = _check(compare.compare_segments("hcp", "decile:1", "decile:7", "KEYTRUDA"), "hcp")
     assert d["data"]["scorecard"][0]["metric"] == "KEYTRUDA volume share"
-    assert d["data"]["scorecard"][0]["a_fmt"] == "51.2%"           # matches hcp_product_share_deciles decile 1
+    dec1 = run_tool("hcp_product_share_deciles", {"product": "KEYTRUDA"}).to_dict()["data"]["deciles"][0]
+    assert d["data"]["scorecard"][0]["a_fmt"] == f"{dec1['product_share_of_market'] * 100:.1f}%"   # decile 1 share
 
 
 def test_time_periods_explain_movement():

@@ -1,7 +1,7 @@
 """Line-of-therapy (LOT) algorithm - oncology business rules.
 
 Rules (numbers match the business-rules document; parameters live in ciq.config):
-1. Gap rule: a difference of >= LOT_GAP_DAYS (60) days between consecutive administrations is a line break
+1. Gap rule: a difference of >= LOT_GAP_DAYS (120) days between consecutive administrations is a line break
    (line advancement), whatever drugs follow.
 2. Adding a new drug to the regimen after the regimen window is line advancement.
 3. Removing a drug from the regimen (e.g. chemo-IO induction -> IO maintenance) is NOT line advancement.
@@ -15,7 +15,8 @@ Rules (numbers match the business-rules document; parameters live in ciq.config)
    compared by molecule, and biosimilar / SC products map to their reference molecule in ciq/reference; molecules
    listed together in LOT_EQUIVALENT_MOLECULES are also treated as the same drug.
 
-Only LUNG_SYSTEMIC therapies define lines (supportive care and other-tumour drugs are ignored).
+Drugs in config.LOT_THERAPY_GROUPS define lines: all anticancer drugs from pharmacy and medical claims, including
+J-code drugs billed as procedures; supportive care never does.
 Line end = last administration + days supply - 1, capped at the next line start - 1 and at data end.
 """
 from __future__ import annotations
@@ -49,7 +50,7 @@ def build_lines_of_therapy(events: pd.DataFrame, data_start: pd.Timestamp, data_
                            window: int = config.LOT_REGIMEN_WINDOW_DAYS,
                            window_cycles: int = config.LOT_REGIMEN_WINDOW_CYCLES,
                            gap_days: int = config.LOT_GAP_DAYS):
-    """events: patient_id, service_date, molecule, product, drug_class, days_supply (LUNG_SYSTEMIC only)."""
+    """events: patient_id, service_date, molecule, product, drug_class, days_supply (LOT_THERAPY_GROUPS only)."""
     events = events.copy()
     events["service_date"] = pd.to_datetime(events["service_date"])
     events = events.sort_values(["patient_id", "service_date", "molecule"])

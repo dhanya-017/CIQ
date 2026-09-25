@@ -421,3 +421,32 @@ select decile, count(*) as hcps,
        round(sum(product_volume) / nullif(sum(market_volume), 0), 4) as product_share_of_market,
        round(avg(product_share), 4) as avg_hcp_share
 from h group by decile order by decile;
+
+-- ---------- 7. IO brand dynamics (fact_io_claim; see ciq/build/io_cohort.py) ------------------------------
+-- Source of business per IO brand family by month or week.
+-- sob: Initiated | Switched from Competitor | <Brand> to <Brand SC> | Continuing
+create or replace macro fn_io_sob(p_brand := null, p_grain := 'month', p_exclude_washout := false) as table
+select case when lower(p_grain) = 'week' then week_start else month_start end as period_start,
+       case when lower(p_grain) = 'week' then strftime(week_start, '%Y-%m-%d') else strftime(month_start, '%Y-%m') end as period,
+       brand_family, sob,
+       count(*) as claims,
+       count(distinct patient_id) as patients
+from fact_io_claim
+where (p_brand is null or brand_family = upper(p_brand))
+  and (not p_exclude_washout or not in_washout)
+group by all
+order by period_start, brand_family, sob;
+
+-- TRx / NRx / RRx / NBRx per IO brand family by month or week.
+create or replace macro fn_io_claim_types(p_brand := null, p_grain := 'month', p_exclude_washout := false) as table
+select case when lower(p_grain) = 'week' then week_start else month_start end as period_start,
+       case when lower(p_grain) = 'week' then strftime(week_start, '%Y-%m-%d') else strftime(month_start, '%Y-%m') end as period,
+       brand_family,
+       sum(trx) as trx, sum(nrx) as nrx, sum(rrx) as rrx, sum(nbrx) as nbrx,
+       count(distinct patient_id) as patients,
+       count(distinct patient_id) filter (where nbrx = 1) as nbrx_patients
+from fact_io_claim
+where (p_brand is null or brand_family = upper(p_brand))
+  and (not p_exclude_washout or not in_washout)
+group by all
+order by period_start, brand_family;

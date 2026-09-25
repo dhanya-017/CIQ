@@ -17,7 +17,7 @@ reference for common tasks.
    git clone https://github.com/SatyamSaitama/ciq-platform.git
    cd ciq-platform
    ```
-2. Copy `claims_master.parquet` into `Data/master/`.
+2. Copy `master_nsclc.csv` and `mx_nsclc.csv` into `Data/real_data/` (see `Data/README.md`).
 3. Run the setup script:
    - Windows: `.\setup.ps1`
    - macOS/Linux: `./setup.sh`
@@ -35,8 +35,9 @@ Use `--skip-bedrock` to skip the (tiny, paid) model call.
 ## 2. Architecture
 
 ```
-Data/master/claims_master.parquet
-        │  python -m ciq.build.build_warehouse   (~15 s, rebuild when data or build logic changes)
+Data/real_data/master_nsclc.csv (+ mx_nsclc.csv, ciq/reference/icd10cm.csv for enrichment)
+        │  ciq/build/sources.py: clean, enrich, keep %C34% cohort -> stg_claims  (CIQ_SOURCE=claims_master: v1 parquet)
+        │  python -m ciq.build.build_warehouse   (~2 min, rebuild when data or build logic changes)
         ▼
 Data/warehouse/ciq.duckdb
   ref_drug, ref_drug_code_map     curated drug dictionary + code→molecule map
@@ -87,7 +88,7 @@ app/static/               no-build UI (index.html, app.js, styles.css) rendering
    names before generic ones (e.g. nab-paclitaxel before paclitaxel).
 2. `therapy_group`:
    - `LUNG_SYSTEMIC`: counts toward the market and lines of therapy
-   - `OTHER_ONCOLOGY`: other-tumour drugs
+   - `OTHER_ONCOLOGY`: other-tumour anticancer drugs; count toward lines of therapy, not the market
    - `SUPPORTIVE`: G-CSF, bone agents and similar
 3. Rebuild: `python -m ciq.build.build_warehouse`.
 4. Check unmapped J-codes: `select * from ref_drug_code_map where match_type = 'J9_FALLBACK'`.

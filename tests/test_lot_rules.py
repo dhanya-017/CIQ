@@ -9,6 +9,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import pandas as pd
 
+from ciq import config
 from ciq.build.lot import build_lines_of_therapy
 
 START = pd.Timestamp("2026-01-01")
@@ -43,11 +44,13 @@ def test_business_illustration_is_one_line():
     assert lot.iloc[0]["regimen_molecules"] == "bevacizumab + carboplatin + pembrolizumab"
 
 
-def test_rule1_gap_of_60_days_is_a_new_line():
-    lot = lines_for({1: ["pembrolizumab"], 61: ["pembrolizumab"]})       # 60 days apart
-    assert len(lot) == 2 and "Gap of 60 days" in lot.iloc[1]["line_start_reason"]
+def test_rule1_gap_of_120_days_is_a_new_line():
+    g = config.LOT_GAP_DAYS
+    assert g == 120                                                        # business rule 1
+    lot = lines_for({1: ["pembrolizumab"], 1 + g: ["pembrolizumab"]})     # 120 days apart
+    assert len(lot) == 2 and f"Gap of {g} days" in lot.iloc[1]["line_start_reason"]
     assert bool(lot.iloc[1]["is_retreatment"])                             # same drug resumed
-    assert len(lines_for({1: ["pembrolizumab"], 60: ["pembrolizumab"]})) == 1   # 59 days apart
+    assert len(lines_for({1: ["pembrolizumab"], g: ["pembrolizumab"]})) == 1   # 119 days apart
 
 
 def test_rule2_4_new_drug_after_window_is_a_new_line():

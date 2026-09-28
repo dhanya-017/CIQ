@@ -31,16 +31,12 @@ file has quirks from that process; the build cleans them all (see "Cleaning").
 | `refill_code` | Pharmacy refill number (0 = new prescription) | `0.0` |
 | `source` | `RX` pharmacy, `MX_RX` medical line with NDC, `MX_PX` medical procedure | — |
 
-### `Data/real_data/mx_nsclc.csv` (recommended, enrichment)
+### `Data/reference/patient_age.csv` (optional, local)
 
-The raw medical extract (about 62 columns). The build reads only:
-- `patient_id`, `pat_age_yr_nbr`: **age** per patient
-- `dx_claim_id`, `provider_billing_id`: **billing provider** per claim, used when a line has no rendering provider
-
-### `Data/master/claims_master.parquet` (optional)
-
-- The **v1** input: 77 columns in long format, one row per claim-line code, with descriptions.
-- Used as a fallback for code descriptions and age, and as the input when `CIQ_SOURCE=claims_master`.
+- Two columns: `patient_id`, `age` (header spellings like `pat_age_yr_nbr` also work).
+- Used only when the claims file has no age column.
+- Patient-level, so never committed.
+- Currently 9,660 patients, extracted once from the raw medical extract.
 
 ### `ciq/reference/drug_reference.csv` (in git)
 
@@ -50,6 +46,11 @@ The curated drug dictionary. Columns:
 - `default_days_supply`: cycle length used for infused drugs
 - `hcpcs_codes`: `;`-separated
 - `name_regex`: matched against product names; the first match wins
+
+### `ciq/reference/hcpcs.csv` (in git)
+
+HCPCS Level II short descriptions (1,818 codes; public): `code`, `short_desc`. They describe J-code drugs and supplies
+on medical claims, and name drugs that fall back to OTHER ANTINEOPLASTIC.
 
 ### `ciq/reference/icd10cm.csv` (in git)
 
@@ -82,9 +83,8 @@ it with `python scripts/fetch_icd10cm.py [year]`.
 | `ref_drug` | 105 | `drug_reference.csv` as loaded |
 | `ref_drug_code_map` | 688 | Every drug signature seen in the claims → `molecule`, `product`, `drug_class`, `therapy_group`, `default_days_supply`, `match_type` (`HCPCS` / `NAME` / `J9_FALLBACK`). Keys: `code_system`, `code`, `prod_name`, `ndc_desc` |
 | `ref_icd10cm` | 98,403 | `code`, `is_billable`, `short_desc` |
-| `ref_code_desc_v1` | 10,799 | Descriptions from the v1 master: `code`, `code_type` (DX/PX), `code_short_desc` |
-| `ref_patient_age` | 9,993 | `patient_id`, `age`, `age_source` (`mx_nsclc.csv` or `claims_master (v1)`) |
-| `ref_claim_billing` | 255,206 | `claim_id`, `provider_billing_id` |
+| `ref_hcpcs` | 1,818 | `code`, `short_desc` |
+| `ref_patient_age` | 9,993 | `patient_id`, `age`, `age_source` (`claims file` or `patient_age.csv`) |
 | `ref_data_coverage` | 1 | `data_start`, `data_end`, `n_patients`, `n_source_rows`, `built_at` |
 | `ref_build_params` | 14 | `param`, `value`: the rules and source used by this build (gap days, regimen window, therapy groups, cohort pattern, washout, source file, row counts) |
 

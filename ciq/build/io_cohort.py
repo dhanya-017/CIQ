@@ -1,4 +1,4 @@
-"""Final IO cohort: IO-brand records with line of therapy, source of business (SOB) and claim types.
+"""Step 8 - Final IO cohort: IO-brand records with line of therapy, source of business (SOB) and claim types.
 
 Built after lines of therapy (which use every anticancer drug), keeping only the IO brands in config.IO_BRANDS
 (Keytruda / Keytruda Qlex, Opdivo / Opdivo Qvantig, Tecentriq / Tecentriq Hybreza). One row per patient, day
@@ -105,3 +105,9 @@ def build_io_cohort(con, log=print) -> None:
                           from fact_io_claim group by 1 order by 1""").fetchall()
     for r in rows:
         log(f"  {r[0]:<10} {r[1]:>6,} claims  {r[2]:>5,} patients  NBRx {r[3]:>5,}  NRx {r[4]:>5,}  RRx {r[5]:>6,}")
+
+
+def run(ctx) -> None:
+    """Pipeline step: build fact_io_claim."""
+    ctx.log("Building fact_io_claim (IO brands only, with SOB and TRx/NRx/RRx/NBRx)")
+    build_io_cohort(ctx.con, ctx.log)

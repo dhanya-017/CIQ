@@ -1,4 +1,4 @@
-"""Line-of-therapy (LOT) algorithm - oncology business rules.
+"""Step 7 - Lines of therapy: the LOT algorithm (oncology business rules) and its pipeline step `run`.
 
 Rules (numbers match the business-rules document; parameters live in ciq.config):
 1. Gap rule: a difference of >= LOT_GAP_DAYS (120) days between consecutive administrations is a line break
@@ -136,3 +136,31 @@ def _new_line(date, mols, reason: str, window: int) -> dict:
     return dict(start=date, last=date, regimen=set(mols), canon={canon(m) for m in mols}, events=[],
                 n_admin_days=1, window_end=date + pd.Timedelta(days=window - 1),   # days 1..28 of the line
                 reason=reason, retreatment=False)
+
+
+def run(ctx) -> None:
+    """Pipeline step: build lot_line / lot_line_drug from fact_drug_event; add dim_patient.clean_start, max_line."""
+    con = ctx.con
+    ctx.log("Building lines of therapy")
+    data_start, data_end = con.execute("select data_start, data_end from ref_data_coverage").fetchone()
+    events = con.execute(f"""
+        select patient_id, service_date, molecule, product, drug_class, days_supply
+        from fact_drug_event where therapy_group in {tuple(config.LOT_THERAPY_GROUPS)!r}
+        order by patient_id, service_date
+    """).df()
+    lot, lot_drug = build_lines_of_therapy(events, pd.Timestamp(data_start), pd.Timestamp(data_end))
+    con.register("lot_df", lot)
+    con.register("lot_drug_df", lot_drug)
+    con.execute("create table lot_line as select * from lot_df")
+    con.execute("create table lot_line_drug as select * from lot_drug_df")
+    con.execute(f"""
+        alter table dim_patient add column clean_start boolean;
+        alter table dim_patient add column max_line int;
+        update dim_patient set
+            clean_start = dim_patient.first_lung_tx_date >= c.data_start + {config.CLEAN_START_DAYS}
+        from ref_data_coverage c;
+        update dim_patient set max_line = l.max_line
+        from (select patient_id, max(line_number) as max_line from lot_line group by 1) l
+        where l.patient_id = dim_patient.patient_id;
+    """)
+    ctx.log(f"  {len(lot):,} lines for {lot['patient_id'].nunique():,} patients")

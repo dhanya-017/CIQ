@@ -14,12 +14,11 @@ $PY -m pip install -r requirements.txt -q
 echo "3/5 Creating .env from .env.example (if missing)"
 [ -f .env ] || cp .env.example .env
 
-echo "4/5 Building warehouse"
-if [ -f Data/master/claims_master.parquet ]; then
-  $PY -m ciq.build.build_warehouse
+echo "4/5 Building the warehouse from the claims file"
+if $PY -m ciq.build.build_warehouse --if-changed; then
   $PY -m pytest tests -q
 else
-  echo "   Data/master/claims_master.parquet not found - see Data/README.md, then rerun ./setup.sh"
+  echo "   Build skipped or stopped - put master_nsclc.csv in Data/real_data/ (see Data/README.md), then rerun ./setup.sh"
 fi
 
 echo "5/5 Environment check"

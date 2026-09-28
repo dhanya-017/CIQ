@@ -23,7 +23,7 @@ Contents:
 
 ## 1. Data and patient cohort
 
-**Input:** `Data/real_data/master_nsclc.csv`, a 15-column claims extract (5,778,852 rows, 9,993 patients,
+**Input:** ONE claims file, `Data/real_data/master_nsclc.csv`: a 15-column extract (5,778,852 rows, 9,993 patients,
 2026-01-01 to 2026-07-31). Each row is one claim line and diagnosis slot, from one of three sources:
 
 | `source` | Meaning | `code` holds |
@@ -32,21 +32,20 @@ Contents:
 | `MX_RX` | Medical claim line carrying a drug NDC | NDC (blank on most lines) |
 | `MX_PX` | Medical claim line's procedure | CPT or HCPCS code (J-codes are drugs) |
 
-**Cleaning** (`ciq/build/sources.py`). The complete extract is kept in `src_master_nsclc`, cleaned:
+**Cleaning** (`ciq/build/load.py`, after validation). The complete extract is kept in `src_master_nsclc`, cleaned:
 - IDs lose the `.0` float artefact.
 - NDCs are padded back to 11 digits (e.g. `2533754` becomes `00002533754`).
 - The upstream `renderring_provider_id` typo column is merged into `rendering_provider_id`.
 - Literal `"NAN"` codes are treated as blank.
 - The original values are kept alongside, in `*_raw` columns.
 
-**Enrichment.** Fields the app uses that the extract lacks:
+**Reference files.** Separate files fill what the extract lacks:
 
 | Field | Source | Coverage |
 |---|---|---|
-| Age | `mx_nsclc.csv` (raw medical extract), then the v1 master | 86% of patients |
-| Billing provider (fallback HCP) | `mx_nsclc.csv`, by claim | 83% of medical claims |
-| Diagnosis descriptions | CMS ICD-10-CM FY2027 code file, then the v1 master | 99.96% of diagnosis events |
-| Procedure descriptions | v1 master | partial (CPT text is AMA-licensed); not used by any analysis |
+| Age | The claims file's own age column if present, else `Data/reference/patient_age.csv` | 86% of patients |
+| Diagnosis descriptions | CMS ICD-10-CM FY2027 code file (`ciq/reference/icd10cm.csv`) | 99.96% of diagnosis events |
+| Procedure descriptions | HCPCS Level II (`ciq/reference/hcpcs.csv`); CPT text is AMA-licensed, so none | HCPCS only; not used by any analysis |
 | Gender | not available in any source | — |
 
 **Cohort rule:** only patients with **at least one diagnosis matching `%C34%`** (lung cancer) are kept
@@ -93,7 +92,7 @@ brands it is identified by:
   - infused drugs: a standard cycle length from the reference, e.g. 21 days for pembrolizumab, 14 for
     nivolumab, 28 for durvalumab
   - the larger of the two is used
-- **HCP:** the rendering provider on medical claims (else the billing provider); the prescriber on pharmacy claims.
+- **HCP:** the rendering provider on medical claims; the prescriber on pharmacy claims.
 - **Payment type:** the claim's own plan type (Commercial, Medicare, Medicare Advantage, Medicare Part D, Managed/FFS
   Medicaid, HIX…). If it's unknown, the patient's most frequent medical payment type is used instead.
 

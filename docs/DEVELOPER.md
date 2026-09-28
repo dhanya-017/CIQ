@@ -10,7 +10,7 @@ This guide takes you from cloning the repo to shipping a change. New to the proj
 - Python 3.10+ (3.12 recommended)
 - Git
 - AWS credentials with Bedrock access to Claude, i.e. `bedrock:InvokeModel*` on the `us.anthropic.claude-sonnet-5` inference profile, region `us-east-1`
-- The data files `master_nsclc.csv` and `mx_nsclc.csv`: request access from the data owner (see [Data/README.md](../Data/README.md))
+- The claims file `master_nsclc.csv` (and optionally `patient_age.csv`): request access from the data owner (see [Data/README.md](../Data/README.md))
 
 **Steps:**
 1. Clone:
@@ -18,7 +18,7 @@ This guide takes you from cloning the repo to shipping a change. New to the proj
    git clone https://github.com/SatyamSaitama/ciq-platform.git
    cd ciq-platform
    ```
-2. Copy `master_nsclc.csv` and `mx_nsclc.csv` into `Data/real_data/` (see `Data/README.md`).
+2. Copy `master_nsclc.csv` into `Data/real_data/` (optionally `patient_age.csv` into `Data/reference/`).
 3. Run the setup script:
    - Windows: `.\setup.ps1`
    - macOS/Linux: `./setup.sh`
@@ -36,9 +36,11 @@ Use `--skip-bedrock` to skip the (tiny, paid) model call.
 ## 2. Architecture
 
 ```
-Data/real_data/master_nsclc.csv (+ mx_nsclc.csv, ciq/reference/icd10cm.csv for enrichment)
-        │  ciq/build/sources.py: clean, enrich, keep %C34% cohort -> stg_claims  (CIQ_SOURCE=claims_master: v1 parquet)
-        │  python -m ciq.build.build_warehouse   (~2 min, rebuild when data or build logic changes)
+Data/real_data/master_nsclc.csv  (the ONE input: any .csv/.csv.gz/.tsv/.parquet, any header spelling)
+        │  python -m ciq.build.build_warehouse   (~70 s; run.ps1 / run.sh rebuild automatically when it changes)
+        │  ciq/build/pipeline.py runs the steps in order, each a small module with run(ctx):
+        │    1 load  2 reference  3 staging  4 drugs  5 facts  6 dimensions  7 lot  8 io_cohort  9 install_procedures
+        │  reference files: ciq/reference/ (drugs, ICD-10-CM, HCPCS) + optional Data/reference/patient_age.csv
         ▼
 Data/warehouse/ciq.duckdb
   ref_drug, ref_drug_code_map     curated drug dictionary + code→molecule map
@@ -103,7 +105,10 @@ in the same PR.
 - **Cohort** (`COHORT_DX_LIKE`), **line-of-therapy** window / gap / therapy groups / equivalent swaps, **IO brands**
   and SC codes, **SOB washout:** `ciq/config.py`, then rebuild.
 - **SOB and claim-type logic** for the IO brands: `ciq/build/io_cohort.py`, then rebuild.
-- **Input format changes:** `ciq/build/sources.py` (the adapter). Everything downstream reads `stg_claims`.
+- **Input format changes:** new header spellings go in `ALIASES` (`ciq/build/inputs.py`); new checks in
+  `validate.py`; a structurally different file needs a new `load.py` / `staging.py`. Everything downstream
+  reads `stg_claims`, so nothing else changes.
+- **A new build step:** add a module with `run(ctx)` in `ciq/build/` and list it in `STEPS` (`pipeline.py`).
 - **Source-of-business, persistency and decile defaults:** tool parameters. Change the defaults in `procedures.sql`
   and `analytics.py` together.
 

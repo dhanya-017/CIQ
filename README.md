@@ -7,10 +7,9 @@ The claims are loaded into a DuckDB warehouse. Each business question is answere
 Vega-Lite chart specs, headline insights and data caveats.
 
 ```
-Data/real_data/master_nsclc.csv ─┐
-Data/real_data/mx_nsclc.csv ─────┼─► build_warehouse.py ──► Data/warehouse/ciq.duckdb
-ciq/reference/icd10cm.csv ───────┘   (ciq/build/sources.py)    ├── src_*   complete input extract, cleaned
-                                                             ├── ref_*   drug dictionary, descriptions, enrichment
+Data/real_data/master_nsclc.csv ──► ciq/build/pipeline.py ──► Data/warehouse/ciq.duckdb
+ (the ONE input; plug and play)       (9 modular steps)         ├── src_*   complete input extract, cleaned
+ciq/reference/*.csv ──────────────────┘                          ├── ref_*   drug dictionary, descriptions, age
                                                              ├── fact_*  drug / dx / procedure events
                                                              ├── dim_*   patient, hcp
                                                              ├── lot_*   lines of therapy
@@ -33,7 +32,7 @@ ciq/tools/registry.py   ── Claude tool-use schemas + run_tool() dispatcher
 ## Getting started (new developers)
 
 1. Clone the repo.
-2. Put `master_nsclc.csv` and `mx_nsclc.csv` in `Data/real_data/` (see [Data/README.md](Data/README.md)).
+2. Put the claims file `master_nsclc.csv` in `Data/real_data/` (and optionally `patient_age.csv` in `Data/reference/`; see [Data/README.md](Data/README.md)).
 3. Run `.\setup.ps1` (Windows) or `./setup.sh` (macOS/Linux).
 4. Start the app with `.\run.ps1` or `./run.sh`.
 5. If anything fails, run `python scripts/doctor.py` for a step-by-step check with fixes.
@@ -45,7 +44,7 @@ the system, and how to add a drug, add an analysis, change business rules, or de
 
 ```bash
 pip install -r requirements.txt
-python -m ciq.build.build_warehouse        # full build (~2 min)
+python -m ciq.build.build_warehouse        # full build (~70 s); --input FILE, --validate-only, --if-changed
 python -m ciq.build.install_procedures     # reinstall only the fn_* after editing ciq/sql/procedures.sql
 python -m pytest tests -q                  # tools, business rules, LOT rules, charts
 python scripts/tool_gallery.py [PRODUCT]   # docs/tool_gallery.html: every tool's charts, for review
@@ -127,12 +126,13 @@ case-insensitive. The default is `KEYTRUDA`, the largest brand in this NSCLC dat
   To add a drug, add a row to the CSV and rebuild.
 - **Events** are deduplicated to one row per patient, day and molecule. Only paid pharmacy claims are kept.
   Infused drugs are given a standard cycle length as their days supply (`default_days_supply`).
-- **Input and cohort** (`ciq/build/sources.py`, `CIQ_SOURCE`):
-  - Default input `Data/real_data/master_nsclc.csv` (15 columns), loaded completely into `src_master_nsclc`
+- **Input and cohort** (`ciq/build/load.py`, `staging.py`; plug and play via `inputs.py`, `validate.py`):
+  - ONE input file, default `Data/real_data/master_nsclc.csv` (15 columns; any file type/header style, see
+    `Data/README.md`), validated, then loaded completely into `src_master_nsclc`
     (IDs cleaned of `.0`, NDCs padded to 11 digits, the `renderring_provider_id` typo column merged).
-  - Fields the app needs but the extract lacks are enriched: **age** and **billing provider** from
-    `mx_nsclc.csv`, **diagnosis descriptions** from the CMS ICD-10-CM file (`scripts/fetch_icd10cm.py`), and
-    the v1 master as a fallback.
+  - Separate reference files fill what the claims file lacks: **diagnosis descriptions** (CMS ICD-10-CM,
+    `ciq/reference/icd10cm.csv`), **HCPCS descriptions** (`ciq/reference/hcpcs.csv`) and **age**
+    (`Data/reference/patient_age.csv`, unless the claims file has an age column).
   - **Cohort:** only patients with a diagnosis `LIKE '%C34%'` are kept.
 - **Lines of therapy** (`ciq/build/lot.py`), built from **all anticancer drugs** (pharmacy NDCs and J-code
   drugs billed as procedures; supportive care excluded):
@@ -166,14 +166,11 @@ case-insensitive. The default is `KEYTRUDA`, the largest brand in this NSCLC dat
   - `volume`: every decile holds about 10% of the volume.
   - The HCP is the rendering provider on medical claims and the prescriber on pharmacy claims.
 
-## Rolling back to v1 (claims_master.parquet)
+## Rolling back
 
-The build before the master_nsclc migration is preserved three ways:
-- **Code:** git tag `v1-claims-master` (`git checkout v1-claims-master`).
-- **Data:** `Data/warehouse/backup/ciq_v1_claims_master_2026-09-25.duckdb`; copy it over `Data/warehouse/ciq.duckdb`
-  (with the app stopped) to serve the old numbers immediately.
-- **Build:** `CIQ_SOURCE=claims_master python -m ciq.build.build_warehouse` rebuilds from the v1 master with the
-  current code.
+- **A bad data refresh:** each rebuild keeps the previous warehouse in `Data/warehouse/backup/` (last 3). With the
+  app stopped, copy one over `Data/warehouse/ciq.duckdb`.
+- **The pre-migration version** (built on the old `claims_master.parquet`): git tag `v1-claims-master`.
 
 ## Data limitations (the tools report these in `caveats`)
 

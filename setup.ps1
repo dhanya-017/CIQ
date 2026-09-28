@@ -13,12 +13,12 @@ Write-Host "2/5 Installing packages" -ForegroundColor Cyan
 Write-Host "3/5 Creating .env from .env.example (if missing)" -ForegroundColor Cyan
 if (-not (Test-Path ".env")) { Copy-Item ".env.example" ".env" }
 
-Write-Host "4/5 Building warehouse" -ForegroundColor Cyan
-if (Test-Path "Data\master\claims_master.parquet") {
-    & $py -m ciq.build.build_warehouse
+Write-Host "4/5 Building the warehouse from the claims file" -ForegroundColor Cyan
+& $py -m ciq.build.build_warehouse --if-changed
+if ($LASTEXITCODE -eq 0) {
     & $py -m pytest tests -q
 } else {
-    Write-Host "   Data\master\claims_master.parquet not found - see Data\README.md, then rerun .\setup.ps1" -ForegroundColor Yellow
+    Write-Host "   Build skipped or stopped - put master_nsclc.csv in Data\real_data\ (see Data\README.md), then rerun .\setup.ps1" -ForegroundColor Yellow
 }
 
 Write-Host "5/5 Environment check" -ForegroundColor Cyan

@@ -2,12 +2,12 @@
 # Only the folder layout (.gitkeep) and Data/README.md are tracked.
 Data/*
 !Data/README.md
-!Data/master/
 !Data/real_data/
+!Data/reference/
 !Data/warehouse/
 !Data/conversations/
-Data/master/*
 Data/real_data/*
+Data/reference/*
 Data/warehouse/*
 Data/conversations/*
 !Data/*/.gitkeep

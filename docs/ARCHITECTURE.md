@@ -31,17 +31,12 @@ how-to tasks see [DEVELOPER.md](DEVELOPER.md).
 ## 3. System overview
 
 ```
- Data/real_data/master_nsclc.csv ─┐
- Data/real_data/mx_nsclc.csv ─────┤  enrichment: age, billing provider
- ciq/reference/icd10cm.csv ───────┤  diagnosis descriptions
- ciq/reference/drug_reference.csv┘  drug dictionary
+ Data/real_data/master_nsclc.csv     the ONE input (plug and play: any file type / header style)
+ ciq/reference/*.csv                 drug dictionary, ICD-10-CM + HCPCS descriptions (public, in git)
+ Data/reference/patient_age.csv      optional age lookup (local)
             │
-            │  BUILD  python -m ciq.build.build_warehouse   (~2 min)
-            │    sources.py   load + clean + enrich + %C34% cohort  → stg_claims
-            │    build_warehouse.py  facts, dimensions
-            │    lot.py       lines of therapy (7 business rules)
-            │    io_cohort.py final IO cohort, SOB, TRx/NRx/RRx/NBRx
-            │    procedures.sql  install fn_* stored functions
+            │  BUILD  python -m ciq.build.build_warehouse   (~70 s; auto-rebuild on change via run.ps1 / run.sh)
+            │    ciq/build/pipeline.py  runs 9 step modules in order (load → … → install_procedures)
             ▼
  Data/warehouse/ciq.duckdb  (read-only at runtime)
             │
@@ -56,32 +51,51 @@ how-to tasks see [DEVELOPER.md](DEVELOPER.md).
 
 ## 4. Build pipeline
 
-Entry point `ciq/build/build_warehouse.py`; the input is chosen by `CIQ_SOURCE`.
+`ciq/build/pipeline.py` is the whole build on one screen: a list of steps, each a small module in `ciq/build/`
+with a `run(ctx)` function. A step reads the tables earlier steps created and writes its own; `ctx` carries the
+DuckDB connection, the input file's details, a logger and counts to record. Command-line entry point:
+`python -m ciq.build.build_warehouse` (options `--input FILE`, `--validate-only`, `--if-changed`).
 
-| Step | Module | Output |
-|---|---|---|
-| 1. Stage the source | `sources.py` | `src_master_nsclc` (complete cleaned extract), `ref_icd10cm`, `ref_code_desc_v1`, `ref_patient_age`, `ref_claim_billing`, and a temporary `stg_claims` in a canonical long layout (one row per claim-line code) |
-| 2. Map drugs | `build_warehouse.build_drug_map` | `ref_drug`, `ref_drug_code_map` (every drug signature → molecule / product / class / therapy group) |
-| 3. Facts | `build_warehouse` | `fact_drug_event`, `fact_dx_event`, `fact_px_event` |
-| 4. Dimensions | `build_warehouse` | `dim_patient`, `dim_hcp`, `ref_data_coverage` |
-| 5. Lines of therapy | `lot.py` | `lot_line`, `lot_line_drug` (+ `dim_patient.max_line`, `clean_start`) |
-| 6. IO cohort | `io_cohort.py` | `fact_io_claim` |
-| 7. Stored functions | `sql/procedures.sql` | `fn_*` table macros |
-| 8. Record parameters | `build_warehouse` | `ref_build_params` (rules and source used by this build) |
+| # | Module | Does | Writes |
+|---|---|---|---|
+| 1 | `load.py` (+ `inputs.py`, `validate.py`) | Read the ONE claims file (any type / header spelling), validate it (stops on errors), clean it | `src_master_nsclc` |
+| 2 | `reference.py` | Load the separate lookup files; age from the claims file's own column, else `patient_age.csv` | `ref_icd10cm`, `ref_hcpcs`, `ref_patient_age` |
+| 3 | `staging.py` | Keep the `%C34%` cohort; rebuild claim lines (the input repeats each line per diagnosis slot); join descriptions and age | `stg_claims` (temporary, long layout: DX rows + one PX/RX anchor row per line) |
+| 4 | `drugs.py` | Map every drug line to molecule / product / class / therapy group with `drug_reference.csv` | `ref_drug`, `ref_drug_code_map` |
+| 5 | `facts.py` | Event tables at a fixed grain | `fact_drug_event`, `fact_dx_event`, `fact_px_event` |
+| 6 | `dimensions.py` | Patients, HCPs, data coverage; fill payment type | `dim_patient`, `dim_hcp`, `ref_data_coverage` |
+| 7 | `lot.py` | Lines of therapy (the 7 business rules) | `lot_line`, `lot_line_drug` |
+| 8 | `io_cohort.py` | Final IO cohort, SOB, TRx/NRx/RRx/NBRx | `fact_io_claim` |
+| 9 | `install_procedures.py` | Install the stored functions from `ciq/sql/procedures.sql` | `fn_*` |
+| — | `pipeline.py` | Record rules, input and fingerprint; swap in the new warehouse | `ref_build_params` |
 
-**Source adapters** (`sources.py`) turn any input into the same `stg_claims` layout, so everything after step 1 is
-input-agnostic:
-- `master_nsclc` (default, v2): the 15-column CSV is cleaned, enriched and reshaped. The upstream file repeats each
-  medical line once per diagnosis slot; the adapter rebuilds a line key and emits one diagnosis row per line and
-  code plus one procedure/drug "anchor" row per line.
-- `claims_master` (legacy, v1): `claims_master.parquet` is already in this layout.
+**Plug-and-play input** (`inputs.py`):
+- **File:** chosen by `--input` > `CIQ_INPUT` > `Data/real_data/master_nsclc.csv`. Types: `.csv` / `.csv.gz` /
+  `.tsv` / `.txt` / `.parquet`.
+- **Headers:** normalised and mapped to canonical names through `ALIASES`; optional columns may be absent.
+- **Dates:** several formats are tried.
+
+`validate.py` then checks:
+- required columns
+- date parsing
+- source values
+- blank IDs
+- the cohort size
+- NDC formats
+
+**Safety:**
+- The build writes `ciq.building.duckdb` and only replaces `ciq.duckdb` when every step succeeds.
+- The previous warehouse goes to `Data/warehouse/backup/` (the last 3 are kept).
+- `--if-changed` skips the build when the input, reference files, business rules and build code are all
+  unchanged (a fingerprint stored in `ref_build_params`). `run.ps1` / `run.sh` use it on every start.
 
 Staging runs as a chain of temporary tables, because DuckDB planned the single combined query badly (it stalled).
 Keep it that way.
 
-**Rebuild** whenever the data, `drug_reference.csv`, `config.py` business rules or build code changes. Stored
-functions alone can be reinstalled with `python -m ciq.build.install_procedures`. The running app holds the database
-file open, so stop it before rebuilding.
+**Rebuilding:** `run.ps1` / `run.sh` rebuild automatically when anything that affects the build changes.
+- **Stored functions only:** reinstall them with `python -m ciq.build.install_procedures`.
+- **The app must be stopped:** the running app holds the database file open. The build notices this and leaves
+  the new file next to the old one instead of failing half-way.
 
 ## 5. Warehouse
 
@@ -95,7 +109,7 @@ file open, so stop it before rebuilding.
 | `dim_hcp` | HCP | Volumes and patient counts |
 | `lot_line` / `lot_line_drug` | patient × line (× drug) | Lines of therapy with regimen and start reason |
 | `fact_io_claim` | patient × day × IO brand | Final IO cohort with line, SOB, TRx/NRx/RRx/NBRx, week/month |
-| `ref_*` | — | Drug dictionary and code map, ICD-10-CM, enrichment tables, data coverage, build parameters |
+| `ref_*` | — | Drug dictionary and code map, ICD-10-CM and HCPCS descriptions, patient age, data coverage, build parameters |
 
 Full column list: [DATA_DICTIONARY.md](DATA_DICTIONARY.md).
 
@@ -205,7 +219,8 @@ NaN/inf into null (they aren't valid JSON). Use it for any new endpoint that ret
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `CIQ_SOURCE` | `master_nsclc` | Build input: `master_nsclc` (v2) or `claims_master` (v1) |
+| `CIQ_INPUT` | `Data/real_data/master_nsclc.csv` | The one claims input file (any location / supported type) |
+| `CIQ_PATIENT_AGE` | `Data/reference/patient_age.csv` | Optional age lookup (used if the claims file has no age column) |
 | `AWS_PROFILE`, `AWS_REGION` | default chain, `us-east-1` | AWS credentials for Bedrock |
 | `CIQ_MODEL`, `CIQ_MODEL_LABEL` | `us.anthropic.claude-sonnet-5`, `Claude Sonnet 5` | Bedrock inference profile and its display name |
 | `CIQ_EFFORT` | `high` | Model effort: `low` … `max` |
@@ -221,15 +236,15 @@ rebuilding and re-testing.
 | Path | Contents |
 |---|---|
 | `ciq/config.py` | Paths, source switch, cohort and business-rule parameters, IO brands |
-| `ciq/reference/` | `drug_reference.csv` (drug dictionary), `icd10cm.csv` (CMS diagnosis descriptions) |
-| `ciq/build/` | `build_warehouse.py`, `sources.py`, `lot.py`, `io_cohort.py`, `install_procedures.py` |
+| `ciq/reference/` | `drug_reference.csv` (drug dictionary), `icd10cm.csv` (CMS diagnosis descriptions), `hcpcs.csv` (HCPCS descriptions) |
+| `ciq/build/` | `pipeline.py` (the step list) and one module per step: `load.py`, `reference.py`, `staging.py`, `drugs.py`, `facts.py`, `dimensions.py`, `lot.py`, `io_cohort.py`, `install_procedures.py`; `inputs.py` + `validate.py` (plug-and-play input); `build_warehouse.py` (command line) |
 | `ciq/sql/procedures.sql` | All stored functions |
 | `ciq/tools/` | Tools, charts, registry (see §6) |
 | `ciq/methodology.py` | Method text per analysis |
 | `app/` | `server.py`, `agent.py`, `store.py`, `settings.py`, `static/` |
 | `scripts/` | `doctor.py` (environment check), `fetch_icd10cm.py`, `tool_gallery.py` |
 | `tests/` | Tools, line-of-therapy rules, IO business rules, compare, charts, journey |
-| `Data/` | Local data only (git-ignored except README/.gitkeep): `real_data/`, `master/`, `warehouse/`, `conversations/`, `cohorts/` |
+| `Data/` | Local data only (git-ignored except README/.gitkeep): `real_data/` (the input), `reference/`, `warehouse/`, `conversations/`, `cohorts/` |
 | `setup.ps1` / `setup.sh`, `run.ps1` / `run.sh` | One-command setup and start |
 
 ## 12. Security and data handling
@@ -251,7 +266,7 @@ Today CIQ runs locally (`run.ps1` / `run.sh`, http://localhost:8000). For a demo
 - one EC2 instance (t3.medium) with an IAM instance role for Bedrock,
 - a reverse proxy for HTTPS and basic auth (e.g. Caddy), a security group limited to known IPs, and SSM instead of SSH.
 
-Only the code and `ciq.duckdb` are needed at runtime; the input CSVs are needed only to rebuild. Keep a single
+Only the code and `ciq.duckdb` are needed at runtime; the claims file is needed only to rebuild. Keep a single
 uvicorn worker, because the conversation store is file-based.
 
 ## 14. Known limitations and technical debt
@@ -259,7 +274,7 @@ uvicorn worker, because the conversation store is file-based.
 - **No authentication or user management;** the conversation and cohort stores are local JSON files for a single
   instance.
 - **The data-source connector is UI-only.**
-- **Build time is about 2 minutes,** mostly the Python line-of-therapy loop. Fine at this size; for much larger data,
+- **Build time is about 70 seconds,** mostly reading the CSV and the Python line-of-therapy loop. Fine at this size; for much larger data,
   move lines of therapy to SQL or vectorise it.
 - **Procedure descriptions are partial** (CPT text is licensed).
 - **Data window of 7 months** limits long look-backs (see BUSINESS_RULES.md §12).

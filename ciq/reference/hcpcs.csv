@@ -1,0 +1,1819 @@
+code,short_desc
+A0100,Nonemergency transport taxi
+A0110,Nonemergency transport bus
+A0120,Noner transport mini-bus
+A0130,Noner transport wheelch van
+A0160,Noner transport case worker
+A0170,Transport parking fees/tolls
+A0380,Basic life support mileage
+A0382,Basic support routine suppls
+A0390,Advanced life support mileag
+A0392,Als defibrillation supplies
+A0394,Als iv drug therapy supplies
+A0396,Als esophageal intub suppls
+A0398,Als routine disposble suppls
+A0420,Ambulance waiting 1/2 hr
+A0422,Ambulance 02 life sustaining
+A0424,Extra ambulance attendant
+A0425,Ground mileage
+A0426,Als 1
+A0427,Als1-emergency
+A0428,Bls
+A0429,Bls-emergency
+A0430,Fixed wing air transport
+A0431,Rotary wing air transport
+A0432,Pi volunteer ambulance co
+A0433,Als 2
+A0434,Specialty care transport
+A0435,Fixed wing air mileage
+A0436,Rotary wing air mileage
+A0888,Noncovered ambulance mileage
+A0998,Ambulance response/treatment
+A0999,Unlisted ambulance service
+A2032,"Myriad matrix, per sq cm"
+A2033,"Myriad morcells, 4 mg"
+A4208,3 cc sterile syringe&needle
+A4212,Non coring needle or stylet
+A4213,20+ cc syringe only
+A4215,Sterile needle
+A4216,"Sterile water/saline, 10 ml"
+A4217,"Sterile water/saline, 500 ml"
+A4218,Sterile saline or water
+A4221,Supp non-insulin inf cath/wk
+A4222,Infusion supplies with pump
+A4223,Infusion supplies w/o pump
+A4224,Supply insulin inf cath/wk
+A4225,Sup/ext insulin inf pump syr
+A4230,Infus insulin pump non needl
+A4232,Syringe w/needle insulin 3cc
+A4233,Alkalin batt for glucose mon
+A4238,Adju cgm supply allowance
+A4239,Non-adju cgm supply allow
+A4245,Alcohol wipes per box
+A4248,Chlorhexidine antisept
+A4253,Blood glucose/reagent strips
+A4256,Calibrator solution/chips
+A4258,Lancet device each
+A4259,Lancets per box
+A4287,Disp col sto bag breast milk
+A4295,Straigh tip hydrophilic cath
+A4296,Coude tip hydrophilic cath
+A4297,Hydrophilic coat insert sup
+A4301,Implantable access syst perc
+A4305,Drug delivery system >=50 ml
+A4306,Drug delivery system <=50 ml
+A4310,Insert tray w/o bag/cath
+A4311,Catheter w/o bag 2-way latex
+A4314,Cath w/drainage 2-way latex
+A4315,Cath w/drainage 2-way silcne
+A4320,Irrigation tray
+A4322,Irrigation syringe
+A4332,Lube sterile packet
+A4333,Urinary cath anchor device
+A4334,Urinary cath leg strap
+A4335,Incontinence supply
+A4338,Indwelling catheter latex
+A4340,Indwelling catheter special
+A4344,Cath indw foley 2 way silicn
+A4351,Straight tip urine catheter
+A4352,Coude tip urinary catheter
+A4353,Intermittent urinary cath
+A4356,Ext ureth clmp or compr dvc
+A4357,Bedside drainage bag
+A4358,Urinary leg or abdomen bag
+A4362,Solid skin barrier
+A4364,"Adhesive, liquid or equal"
+A4367,Ostomy belt
+A4369,Skin barrier liquid per oz
+A4371,Skin barrier powder per oz
+A4373,Skin barrier with flange
+A4385,Ost skn barrier sld ext wear
+A4388,Drainable pch w ex wear barr
+A4389,Drainable pch w st wear barr
+A4391,Urinary pouch w ex wear barr
+A4393,Urine pch w ex wear bar conv
+A4394,Ostomy pouch liq deodorant
+A4396,Peristomal hernia supprt blt
+A4402,Lubricant per ounce
+A4405,Nonpectin based ostomy paste
+A4406,Pectin based ostomy paste
+A4407,"Ext wear ost skn barr <=4sq"""
+A4408,"Ext wear ost skn barr >4sq"""
+A4409,Ost skn barr convex <=4 sq i
+A4410,Ost skn barr extnd >4 sq
+A4414,Ost sknbar w/o conv<=4 sq in
+A4419,Ost pch for bar w flange/flt
+A4424,Ost pch drain w bar & filter
+A4425,Ost pch drain for barrier fl
+A4428,Urine ost pouch w faucet/tap
+A4432,Os pch urine w bar/fange/tap
+A4450,Non-waterproof tape
+A4452,Waterproof tape
+A4453,"Rec cath any transanal, each"
+A4455,Adhesive remover per ounce
+A4456,"Adhesive remover, wipes"
+A4459,"Transanal irrigation, manual"
+A4467,Belt strap sleev grmnt cover
+A4520,Incontinence garment anytype
+A4550,Surgical trays
+A4553,"Nondisp underpads, all sizes"
+A4554,Disposable underpads
+A4556,"Electrodes, pair"
+A4557,"Lead wires, pair"
+A4561,Pessary reusable rub anytype
+A4562,Pessary reusable nonrubber
+A4565,Slings
+A4580,Cast supplies (plaster)
+A4595,Tens suppl 2 lead per month
+A4600,"Sleeve, inter limb comp dev"
+A4604,Tubing with heating element
+A4605,Trach suction cath close sys
+A4606,Oxygen probe used w oximeter
+A4615,Cannula nasal
+A4616,Tubing (oxygen) per foot
+A4617,Mouth piece
+A4618,Breathing circuits
+A4620,Variable concentration mask
+A4623,Tracheostomy inner cannula
+A4624,Tracheal suction tube
+A4625,Trach care kit for new trach
+A4626,Tracheostomy cleaning brush
+A4627,Spacer bag/reservoir
+A4628,Oropharyngeal suction cath
+A4629,Tracheostomy care kit
+A4630,Repl bat t.e.n.s. own by pt
+A4648,Implantable tissue marker
+A4649,Surgical supplies
+A4653,Pd catheter anchor belt
+A4657,Syringe w/wo needle
+A4663,Dialysis blood pressure cuff
+A4670,"Automatic bp monitor, dial"
+A4913,Misc dialysis supplies noc
+A4927,Non-sterile gloves
+A4930,"Sterile, gloves per pair"
+A4931,Reusable oral thermometer
+A5054,Clsd ostomy pouch w/flange
+A5056,1 pc ost pouch w filter
+A5057,1 pc ost pou w built-in conv
+A5063,Drain ostomy pouch w/flange
+A5102,Bedside drain btl w/wo tube
+A5112,Urinary leg bag
+A5120,"Skin barrier, wipe or swab"
+A5121,Solid skin barrier 6x6
+A5500,Diab shoe for density insert
+A5512,Multi den insert direct form
+A5513,Multi den insert custom mold
+A5514,Mult den insert dir carv/cam
+A6010,Collagen based wound filler
+A6021,Collagen dressing <=16 sq in
+A6022,Collagen drsg>16<=48 sq in
+A6196,Alginate dressing <=16 sq in
+A6197,Alginate drsg >16 <=48 sq in
+A6198,Alginate dressing > 48 sq in
+A6199,Alginate drsg wound filler
+A6203,Composite drsg <= 16 sq in
+A6204,Composite drsg >16<=48 sq in
+A6206,Contact layer <= 16 sq in
+A6207,Contact layer >16<= 48 sq in
+A6209,Foam drsg <=16 sq in w/o bdr
+A6210,Foam drg >16<=48 sq in w/o b
+A6211,Foam drg > 48 sq in w/o brdr
+A6212,Foam drg <=16 sq in w/border
+A6213,Foam drg >16<=48 sq in w/bdr
+A6216,Non-sterile gauze<=16 sq in
+A6219,Gauze <= 16 sq in w/border
+A6220,Gauze >16 <=48 sq in w/bordr
+A6222,Gauze <=16 in no w/sal w/o b
+A6223,Gauze >16<=48 no w/sal w/o b
+A6231,Hydrogel dsg<=16 sq in
+A6233,Hydrogel dressing >48 sq in
+A6234,Hydrocolld drg <=16 w/o bdr
+A6240,Hydrocolld drg filler paste
+A6242,Hydrogel drg <=16 in w/o bdr
+A6248,Hydrogel drsg gel filler
+A6250,Skin seal protect moisturizr
+A6251,Absorpt drg <=16 sq in w/o b
+A6252,Absorpt drg >16 <=48 w/o bdr
+A6253,Absorpt drg > 48 sq in w/o b
+A6254,Absorpt drg <=16 sq in w/bdr
+A6257,Transparent film <= 16 sq in
+A6258,Transparent film >16<=48 in
+A6259,Transparent film > 48 sq in
+A6260,Wound cleanser any type/size
+A6261,Wound filler gel/paste /oz
+A6266,Impreg gauze no h20/sal/yard
+A6402,Sterile gauze <= 16 sq in
+A6403,Sterile gauze>16 <= 48 sq in
+A6404,Sterile gauze > 48 sq in
+A6442,"Conform band n/s w<3""/yd"
+A6443,"Conform band n/s w>=3""<5""/yd"
+A6445,"Conform band s w <3""/yd"
+A6446,"Conform band s w>=3"" <5""/yd"
+A6448,"Lt compres band <3""/yd"
+A6449,"Lt compres band >=3"" <5""/yd"
+A6452,"High compres band w>=3""<5""yd"
+A6453,"Self-adher band w <3""/yd"
+A6454,"Self-adher band w>=3"" <5""/yd"
+A6456,"Zinc paste band w >=3""<5""/yd"
+A6457,Tubular dressing
+A6523,G com garment arm nght custm
+A6533,Gc stocking thighlngth 18-30
+A6539,Gc stocking waistlngth 18-30
+A6545,Grad com non-elastic bk surg
+A6549,Grad com garm noc day use
+A6550,Neg pres wound ther drsg set
+A6565,Grad comp gauntlet custom
+A6566,Grad com garment neck/head
+A6576,Custom grad com sleeve med
+A6583,Grad com wrap w straps bk
+A6590,Urinary cath disp suc pump
+A6594,G comp bandge liner lwr extr
+A7000,Disposable canister for pump
+A7002,Tubing used w suction pump
+A7003,Nebulizer administration set
+A7005,Nondisposable nebulizer set
+A7007,Lg vol nebulizer disposable
+A7010,Disposable corrugated tubing
+A7012,Nebulizer water collec devic
+A7013,Disposable compressor filter
+A7015,Aerosol mask used w nebulize
+A7016,Nebulizer dome & mouthpiece
+A7021,Suppl and access lung expan
+A7027,Combination oral/nasal mask
+A7030,Cpap full face mask
+A7031,Replacement facemask interfa
+A7032,Replacement nasal cushion
+A7033,Replacement nasal pillows
+A7034,Nasal application device
+A7035,Pos airway press headgear
+A7036,Pos airway press chinstrap
+A7037,Pos airway pressure tubing
+A7038,Pos airway pressure filter
+A7039,"Filter, non disposable w pap"
+A7040,One way chest drain valve
+A7041,Water seal drain container
+A7045,Repl exhalation port for pap
+A7046,"Repl water chamber, pap dev"
+A7048,Vacuum drain bottle/tube kit
+A7504,Tracheostoma hmes filter
+A7506,Hmes/trachvalve adhesivedisk
+A7507,Integrated filter & holder
+A7508,Housing & integrated adhesiv
+A7520,Trach/laryn tube non-cuffed
+A7521,Trach/laryn tube cuffed
+A7523,Tracheostomy shower protect
+A7525,Tracheostomy mask
+A7526,Tracheostomy tube collar
+A9150,Misc/exper non-prescript dru
+A9270,Non-covered item or service
+A9276,"Disposable sensor, cgm sys"
+A9279,Monitoring feature/devicenoc
+A9280,"Alert device, noc"
+A9282,Wig any type
+A9284,Non-electronic spirometer
+A9286,"Any hygienic item, device"
+A9500,Tc99m sestamibi
+A9502,Tc99m tetrofosmin
+A9503,Tc99m medronate
+A9506,Tc-99m graphite crucible
+A9513,Lutetium lu 177 dotatat ther
+A9516,Iodine i-123 sod iodide mic
+A9520,Tc99 tilmanocept diag 0.5mci
+A9521,Tc99m exametazime
+A9528,"Iodine i-131 iodide cap, dx"
+A9529,"I131 iodide sol, dx"
+A9530,"I131 iodide sol, rx"
+A9537,Tc99m mebrofenin
+A9538,Tc99m pyrophosphate
+A9539,Tc99m pentetate
+A9540,Tc99m maa
+A9541,Tc99m sulfur colloid
+A9552,F18 fdg
+A9555,Rb82 rubidium
+A9558,Xe133 xenon 10mci
+A9560,Tc99m labeled rbc
+A9561,Tc99m oxidronate
+A9562,Tc99m mertiatide
+A9567,Technetium tc-99m aerosol
+A9569,Technetium tc-99m auto wbc
+A9572,Indium in-111 pentetreotide
+A9573,"Inj, gadopiclenol, 1 ml"
+A9575,Inj gadoterate meglumi 0.1ml
+A9576,Inj prohance multipack
+A9577,Inj multihance
+A9578,Inj multihance multipack
+A9579,"Gad-base mr contrast nos,1ml"
+A9580,Sodium fluoride f-18
+A9581,Gadoxetate disodium inj
+A9585,Gadobutrol injection
+A9586,Florbetapir f18
+A9587,Gallium ga-68
+A9588,Fluciclovine f-18
+A9592,Copper cu 64 dotatate diag
+A9594,"Gallium ga-68 psma-11, ucla"
+A9595,Piflu f 18 pylarify dx 1 mci
+A9596,Gallium illuccix 1 millicure
+A9601,Flortaucipir inj 1 millicuri
+A9603,"Inj, pafolacianine, 0.1 mg"
+A9607,Lutetium lu 177 vipivotide
+A9608,Flotufolastat f18 diag 1 mci
+A9609,"F18 fdg, 15 millicuries"
+A9616,Gallium gozellix 1 millicuri
+A9698,Non-rad contrast materialnoc
+A9800,Gallium locametz 1 millicuri
+A9900,Supply/accessory/service
+A9901,Delivery/set up/dispensing
+B4034,Enter feed supkit syr by day
+B4035,Enteral feed supp pump per d
+B4036,Enteral feed sup kit grav by
+B4087,"Gastro/jejuno tube, std"
+B4104,Additive for enteral formula
+B4150,Ef complet w/intact nutrient
+B4152,Ef calorie dense>/=1.5kcal
+B4153,Ef hydrolyzed/amino acids
+B4154,Ef spec metabolic noninherit
+B4155,Ef incomplete/modular
+B4185,Pn soln nos 10 grams lipids
+B4189,Parenteral sol amino acid &
+B4197,Parenteral sol 74-100 gm pro
+B4199,Parenteral sol > 100gm prote
+B5200,Parenteral sol hepatic fream
+B9002,Enter nutr inf pump any type
+B9998,Enteral supp not otherwise c
+B9999,Parenteral supp not othrws c
+C1601,"Endo, single, pulmonary"
+C1713,"Anchor/screw bn/bn,tis/bn"
+C1715,Brachytherapy needle
+C1717,"Brachytx, non-str,hdr ir-192"
+C1724,"Cath, trans atherec,rotation"
+C1725,"Cath, translumin non-laser"
+C1726,"Cath, bal dil, non-vascular"
+C1727,"Cath, bal tis dis, non-vas"
+C1729,"Cath, drainage"
+C1730,"Cath, ep, 19 or few elect"
+C1732,"Cath, ep, diag/abl, 3d/vect"
+C1733,"Cath, ep, othr than cool-tip"
+C1734,"Orth/devic/drug bn/bn,tis/bn"
+C1739,Marker uniq detect w/prbe
+C1747,"Endo, single, urinary tract"
+C1748,"Endoscope, single, ugi"
+C1749,"Endo, colon, retro imaging"
+C1750,"Cath, hemodialysis,long-term"
+C1751,"Cath, inf, per/cent/midline"
+C1752,"Cath,hemodialysis,short-term"
+C1753,"Cath, intravas ultrasound"
+C1755,"Catheter, intraspinal"
+C1757,"Cath, thrombectomy/embolect"
+C1758,"Catheter, ureteral"
+C1759,"Cath, intra echocardiography"
+C1760,"Closure dev, vasc"
+C1761,"Cath, trans intra litho/coro"
+C1762,"Conn tiss, human(inc fascia)"
+C1763,"Conn tiss, non-human"
+C1764,"Event recorder, cardiac"
+C1766,"Intro/sheath,strble,non-peel"
+C1767,"Generator, neuro non-recharg"
+C1768,"Graft, vascular"
+C1769,Guide wire
+C1770,"Imaging coil, mr, insertable"
+C1772,"Infusion pump, programmable"
+C1773,"Ret dev, insertable"
+C1776,Joint device (implantable)
+C1777,"Lead, aicd, endo single coil"
+C1778,"Lead, neurostimulator"
+C1781,Mesh (implantable)
+C1782,Morcellator
+C1785,"Pmkr, dual, rate-resp"
+C1786,"Pmkr, single, rate-resp"
+C1787,"Patient progr, neurostim"
+C1788,"Port, indwelling, imp"
+C1814,"Retinal tamp, silicone oil"
+C1819,Tissue localization-excision
+C1826,"Gen, neuro, clo loop, rechg"
+C1830,Power bone marrow bx needle
+C1874,"Stent, coated/cov w/del sys"
+C1876,"Stent, non-coa/non-cov w/del"
+C1877,"Stent, non-coat/cov w/o del"
+C1878,Matrl for vocal cord
+C1880,Vena cava filter
+C1882,"Aicd, other than sing/dual"
+C1884,Embolization protect syst
+C1886,"Catheter, ablation"
+C1887,"Catheter, guiding"
+C1889,"Implant/insert device, noc"
+C1892,"Intro/sheath,fixed,peel-away"
+C1893,"Intro/sheath, fixed,non-peel"
+C1894,"Intro/sheath, non-laser"
+C1895,"Lead, aicd, endo dual coil"
+C1897,"Lead, neurostim test kit"
+C1898,"Lead, pmkr, other than trans"
+C1900,"Lead, coronary venous"
+C2596,"Probe, robotic, water-jet"
+C2613,Lung bx plug w/del sys
+C2615,"Sealant, pulmonary, liquid"
+C2616,"Brachytx, non-str,yttrium-90"
+C2617,"Stent, non-cor, tem w/o del"
+C2618,"Probe/needle, cryo"
+C2623,"Cath, translumin, drug-coat"
+C2625,"Stent, non-cor, tem w/del sy"
+C2628,"Catheter, occlusion"
+C2629,"Intro/sheath, laser"
+C2630,"Cath, ep, cool-tip"
+C7513,Cath/angio dialcir w/aplasty
+C7901,"Hopd mntl hlt, 30-60 min"
+C7902,"Hopd mntl hlt, ea addl"
+C8005,Pef bronch ablt 3d nav ebus
+C8902,"Mra w/o fol w/cont, abd"
+C8908,"Mri w/o fol w/cont, breast,"
+C8911,"Mra w/o fol w/cont, chest"
+C8922,"Tte w or w/o fol w/cont, f/u"
+C8924,"2d tte w or w/o fol w/con,fu"
+C8925,"2d tee w or w/o fol w/con,in"
+C8928,"Tte w or w/o fol w/con,stres"
+C8929,"Tte w or wo fol wcon,doppler"
+C8930,"Tte w or w/o contr, cont ecg"
+C8937,Cad breast mri
+C9145,"Inj, aponvie, 1 mg"
+C9176,Dom nonheu tc99m add-on/dose
+C9257,Bevacizumab injection
+C9308,"Inj, carboplatin (avyxa)"
+C9399,Unclassified drugs or biolog
+C9460,"Injection, cangrelor"
+C9600,Perc drug-el cor stent sing
+C9602,Perc d-e cor stent ather s
+C9604,Perc d-e cor revasc t cabg s
+C9740,Cysto impl 4 or more
+C9765,Revasc intra lithotrip-stent
+C9777,Esophag muc integ w/eso egd
+C9779,Esd endoscopy or colonoscopy
+C9789,Instill pharm renal pelvis
+C9793,Pre 3d mdl w/ccta and/or mri
+E0100,Cane adjust/fixed with tip
+E0105,Cane adjust/fixed quad/3 pro
+E0114,Crutch underarm pair no wood
+E0135,Walker folding adjust/fixed
+E0141,Rigid wheeled walker adj/fix
+E0143,Walker folding wheeled w/o s
+E0144,Enclosed walker w rear seat
+E0148,Heavyduty walker no wheels
+E0149,Heavy duty wheeled walker
+E0154,Walker platform attachment
+E0155,"Walker wheel attachment,pair"
+E0156,Walker seat attachment
+E0159,Brake for wheeled walker
+E0163,Commode chair with fixed arm
+E0165,Commode chair with detacharm
+E0168,Heavyduty/wide commode chair
+E0181,Press pad alternating w/ pum
+E0184,Dry pressure mattress
+E0185,Gel pressure mattress pad
+E0199,Dry pressure pad for mattres
+E0210,Electric heat pad standard
+E0240,Bath/shower chair
+E0241,Bath tub wall rail
+E0243,Toilet rail
+E0244,Toilet seat raised
+E0245,Tub stool or bench
+E0246,Transfer tub rail attachment
+E0247,Trans bench w/wo comm open
+E0250,Hosp bed fixed ht w/ mattres
+E0260,Hosp bed semi-electr w/ matt
+E0261,Hosp bed semi-electr w/o mat
+E0265,Hosp bed total electr w/ mat
+E0271,Mattress innerspring
+E0272,Mattress foam rubber
+E0274,Over-bed table
+E0277,Powered pres-redu air mattrs
+E0294,Hosp bed semi-elect w/ mattr
+E0295,Hosp bed semi-elect w/o matt
+E0305,Rails bed side half length
+E0424,Stationary compressed gas 02
+E0430,Oxygen system gas portable
+E0431,Portable gaseous 02
+E0434,Portable liquid 02
+E0439,Stationary liquid 02
+E0441,"Stationary o2 contents, gas"
+E0442,"Stationary o2 contents, liq"
+E0443,"Portable 02 contents, gas"
+E0445,Oximeter non-invasive
+E0465,Home vent invasive interface
+E0466,Home vent non-invasive inter
+E0469,Lung expans high oscil neb
+E0470,Rad w/o backup non-inv intfc
+E0471,Rad w/backup non inv intrfc
+E0483,Hi freq chest wall oscil sys
+E0484,Non-elec oscillatory pep dvc
+E0555,Humidifier for use w/ regula
+E0562,Humidifier heated used w pap
+E0565,Compressor air power source
+E0570,Nebulizer with compression
+E0600,Suction pump portab hom modl
+E0601,Cont airway pressure device
+E0603,Electric breast pump
+E0604,Hosp grade elec breast pump
+E0607,Blood glucose monitor home
+E0615,Pacemaker monitr digital/vis
+E0630,Patient lift hydraulic
+E0651,Pneum compressor segmental
+E0652,Pneum compres w/cal pressure
+E0667,Seg pneumatic appl full leg
+E0668,Seg pneumatic appl full arm
+E0673,Pressure pneum appl half leg
+E0675,Pneumatic compression device
+E0705,Transfer device
+E0720,Tens two lead
+E0730,Tens four lead
+E0745,Neuromuscular stim for shock
+E0748,Elec osteogen stim spinal
+E0760,Osteogen ultrasound stimltor
+E0776,Iv pole
+E0781,External ambulatory infus pu
+E0784,Ext amb infusn pump insulin
+E0935,Cont pas motion exercise dev
+E0951,Loop heel
+E0953,W/c lateral thigh/knee sup
+E0954,"Foot box, any type each foot"
+E0955,Cushioned headrest
+E0956,W/c lateral trunk/hip suppor
+E0961,Wheelchair brake extension
+E0971,Wheelchair anti-tipping devi
+E0973,W/ch access det adj armrest
+E0978,"W/c acc,saf belt pelv strap"
+E0986,Man w/c powr assist syst
+E0990,Wheelchair elevating leg res
+E1002,Pwr seat tilt
+E1007,Pwr seat combo w/shear
+E1012,Ctr mount pwr elev leg rest
+E1028,W/c manual swingaway
+E1032,Wheelchair joystick drive
+E1033,Wheelchair hardware headrest
+E1034,Wheelchair trunk hip support
+E1038,Transport chair pt wt<=300lb
+E1039,Transport chair pt wt >300lb
+E1140,Wheelchair standard detach a
+E1161,Manual adult wc w tiltinspac
+E1225,Manual semi-reclining back
+E1226,Manual fully reclining back
+E1353,Oxygen supplies regulator
+E1355,Oxygen supplies stand/rack
+E1356,"Batt pack/cart, port conc"
+E1390,Oxygen concentrator
+E1392,Portable oxygen concentrator
+E1399,Durable medical equipment mi
+E1700,Jaw motion rehab system
+E1840,Adj shoulder ext/flex device
+E2001,Suct pum ext mgmt sys
+E2103,Non-adju cgm receiver/mon
+E2201,"Man w/ch acc seat w>=20""<24"""
+E2203,Frame depth less than 22 in
+E2207,Crutch and cane holder
+E2208,Cylinder tank carrier
+E2211,Pneumatic propulsion tire
+E2213,Pneumatic prop tire insert
+E2231,Solid seat support base
+E2298,Pwr seat elev sys for crt
+E2311,Electro connect btw 2 sys
+E2313,"Pwc harness, expand control"
+E2361,22nf sealed leadacid battery
+E2363,Gr24 sealed leadacid battery
+E2365,U1 sealed leadacid battery
+E2366,"Battery charger, single mode"
+E2370,Pwr wc dr wh motor/gear comb
+E2376,"Expandable controller, repl"
+E2377,"Expandable controller, initl"
+E2397,"Pwc acc, lith-based battery"
+E2402,Neg press wound therapy pump
+E2510,Sgd w multi methods msg/accs
+E2599,Sgd accessory noc
+E2601,Gen w/c cushion wdth < 22 in
+E2603,Skin protect wc cus wd <22in
+E2607,Skin pro/pos wc cus wd <22in
+E2611,Gen use back cush wdth <22in
+E2615,Pos back post/lat wdth <22in
+E2620,Wc planar back cush wd <22in
+E2622,Adj skin pro w/c cus wd<22in
+G0008,Admin influenza virus vac
+G0009,Admin pneumococcal vaccine
+G0010,Admin hepatitis b vaccine
+G0023,Pin service 60m per month
+G0024,Pin srv add 30 min pr m
+G0029,No tob scr/cess int
+G0030,Pt scr tob & cess int
+G0031,Pall serv during meas
+G0068,Adm iv infusion drug in home
+G0083,Care man h v ext pt 45 m
+G0088,Adm iv drug 1st home visit
+G0101,Ca screen;pelvic/breast exam
+G0103,Psa screening
+G0105,Colorectal scrn; hi risk ind
+G0108,Diab manage trn  per indiv
+G0121,Colon ca scrn not hi rsk ind
+G0123,Screen cerv/vag thin layer
+G0124,Screen c/v thin layer by md
+G0127,Trim nail(s)
+G0136,Adm of pa/n assess 5-15 m
+G0140,Nav srv peer sup 60 min pr m
+G0145,"Scr c/v cyto,thinlayer,rescr"
+G0151,"Hhcp-serv of pt,ea 15 min"
+G0152,"Hhcp-serv of ot,ea 15 min"
+G0153,"Hhcp-svs of s/l path,ea 15mn"
+G0155,"Hhcp-svs of csw,ea 15 min"
+G0156,"Hhcp-svs of aide,ea 15 min"
+G0157,Hhc pt assistant ea 15
+G0158,Hhc ot assistant ea 15
+G0159,Hhc pt maint ea 15 min
+G0160,Hhc occup therapy ea 15
+G0161,Hhc slp ea 15 min
+G0162,"Hhc rn e&m plan svs, 15 min"
+G0168,Wound closure by adhesive
+G0175,"Opps service,sched team conf"
+G0176,Opps/php/iop; activity thrpy
+G0177,Opps/php/iop; train & educ
+G0179,Md recertification hha pt
+G0180,Md certification hha patient
+G0181,Home health care supervision
+G0182,Hospice care supervision
+G0237,Therapeutic procd strg endur
+G0238,"Oth resp proc, indiv"
+G0239,"Oth resp proc, group"
+G0245,Initial foot exam pt lops
+G0246,Followup eval of foot pt lop
+G0249,Provide inr test mater/equip
+G0250,Md inr test revie inter mgmt
+G0257,Unsched dialysis esrd pt hos
+G0259,Inject for sacroiliac joint
+G0260,Inj for sacroiliac jt anesth
+G0268,Removal of impacted wax md
+G0269,Occlusive device in vein art
+G0270,Mnt subs tx for change dx
+G0278,"Iliac art angio,cardiac cath"
+G0279,"Tomosynthesis, mammo"
+G0283,Elec stim other than wound
+G0288,"Recon, cta for surg plan"
+G0296,Visit to determ ldct elig
+G0299,Hhs/hospice of rn ea 15 min
+G0300,Hhs/hospice of lpn ea 15 min
+G0306,Cbc/diffwbc w/o platelet
+G0307,Cbc without platelet
+G0316,Prolong inpt eval add15 m
+G0317,Prolong nursin fac eval 15m
+G0318,Prolong home eval add 15m
+G0320,Two-way audio and video hhs
+G0321,Audio-only hhs
+G0322,Home h physio data collec tr
+G0328,Fecal blood scrn immunoassay
+G0333,Dispense fee initial 30 day
+G0339,"Robot lin-radsurg com, first"
+G0340,Robt lin-radsurg fractx 2-5
+G0378,Hospital observation per hr
+G0379,Direct refer hospital observ
+G0381,Lev 2 hosp type b ed visit
+G0382,Lev 3 hosp type b ed visit
+G0383,Lev 4 hosp type b ed visit
+G0384,Lev 5 hosp type b ed visit
+G0390,Trauma respons w/hosp criti
+G0396,Alcohol/subs interv 15-30mn
+G0397,Alcohol/subs interv >30 min
+G0398,Home sleep test/type 2 porta
+G0399,Home sleep test/type 3 porta
+G0400,Home sleep test/type 4 porta
+G0402,Initial preventive exam
+G0403,Ekg for initial prevent exam
+G0404,Ekg tracing for initial prev
+G0407,Inpt/tele follow up 25
+G0408,Inpt/tele follow up 35
+G0410,Grp psych php/iop 45-50
+G0413,Pelvic ring fracture uni/bil
+G0416,"Prostate biopsy, any mthd"
+G0422,Intens cardiac rehab w/exerc
+G0423,Intens cardiac rehab no exer
+G0425,Inpt/ed teleconsult30
+G0426,Inpt/ed teleconsult50
+G0427,Inpt/ed teleconsult70
+G0432,Eia hiv-1/hiv-2 screen
+G0433,Elisa hiv-1/hiv-2 screen
+G0438,"Ppps, initial visit"
+G0439,"Ppps, subseq visit"
+G0442,Annual alcohol screen 15 min
+G0443,Brief alcohol misuse counsel
+G0444,Depression screen annual
+G0446,Intens behave ther cardio dx
+G0447,Behavior counsel obesity 15m
+G0452,Molecular pathology interpr
+G0453,Cont intraop neuro monitor
+G0463,Hospital outpt clinic visit
+G0466,Fqhc visit new patient
+G0467,"Fqhc visit, estab pt"
+G0468,"Fqhc visit, ippe or awv"
+G0469,"Fqhc visit, mh new pt"
+G0470,"Fqhc visit, mh estab pt"
+G0471,Ven blood coll snf/hha
+G0472,Hep c screen high risk/other
+G0475,Hiv combination assay
+G0480,Drug test def 1-7 classes
+G0481,Drug test def 8-14 classes
+G0482,Drug test def 15-21 classes
+G0483,Drug test def 22+ classes
+G0491,Dialysis acu kidney no esrd
+G0493,Rn care ea 15 min hh/hospice
+G0494,Lpn care ea 15min hh/hospice
+G0495,Rn care train/edu in hh
+G0496,Lpn care train/edu in hh
+G0498,Chemo extend iv infus w/pump
+G0499,Hepb screen high risk indiv
+G0500,Mod sedat endo service >5yrs
+G0506,Comp asses care plan ccm svc
+G0508,Crit care telehea consult 60
+G0513,"Prolong prev svcs, first 30m"
+G0517,Remove drug implant
+G0520,New pt-cg dyad dem mod cmplx
+G0524,Est pt-cg dyad dem low cmplx
+G0525,Est pt-cg dyad dem mod cmplx
+G0537,Risk ascvd tst once pr 12 mo
+G0538,Ascvd rsk mng clin stf pr mo
+G0543,Group train w/o patient
+G0545,Inherent visit to inpt
+G0556,Adv prim care mgmt lvl 1
+G0557,Adv prim care mgmt lvl 2
+G0558,Adv prim care mgmt lvl 3
+G0571,Intraop nerve cryoablation
+G2010,Remot image submit by pt
+G2011,Alcohol/sub misuse assess
+G2025,Dis site tele svcs rhc/fqhc
+G2062,Qual nonmd est pt 11-20m
+G2067,Med assist tx meth wk
+G2074,Med assist tx no drug
+G2076,Intake act w/med exam
+G2077,Periodic assessment
+G2078,Take-home meth
+G2080,Add 30 mins counsel
+G2091,Pt 66+ frailty and adv ill
+G2096,No rsn ace arb arni
+G2099,Pt 66+ frailty and adv ill
+G2101,Pt 66+ frailty and adv ill
+G2116,Pt 66-80 frailty and adv ill
+G2168,Svs by pt in home health
+G2181,Bmi not doc medrsn ptref
+G2197,Screen hlthy etoh use
+G2211,Complex e/m visit add on
+G2212,Prolong outpt/office vis
+G2214,Init/sub psych care m 1st 30
+G2252,"Brief chkin by md/qhp, 11-20"
+G3002,Chronic pain mgmt 30 mins
+G8397,Dil macula/fundus exam/w doc
+G8399,Pt w/dxa results document
+G8400,Pt w/dxa no results doc
+G8404,Low extemity neur exam docum
+G8410,Eval on foot documented
+G8417,Calc bmi abv up param f/u
+G8418,Calc bmi blw low param f/u
+G8419,Calc bmi out nrm param nof/u
+G8420,Calc bmi norm parameters
+G8421,Bmi not calculated
+G8427,Docrev cur meds by elig clin
+G8428,Cur meds not document
+G8430,Doc med rsn no medrec
+G8431,Pos clin depres scrn f/u doc
+G8432,"Dep scr not doc, rng"
+G8433,Scr for dep not cpt doc rsn
+G8450,Beta-bloc rx pt w/abn lvef
+G8473,Ace/arb thxpy rx'd
+G8476,Bp sys <140 and dias <90
+G8510,"Scr dep neg, no plan reqd"
+G8511,"Scr dep pos, no plan doc rng"
+G8535,Eld maltreatment not doc
+G8539,Doc funct and care plan
+G8542,Doc funct no deficiencies
+G8598,Asa/antiplat ther used
+G8599,No asa/antiplat ther use rng
+G8721,"Pt, pn, hist grade doc"
+G8734,Doc neg eld req
+G8752,Sys bp less 140
+G8753,Sys bp > or = 140
+G8754,Dias bp less 90
+G8755,Dias bp > or = 90
+G8756,No bp measure doc
+G8783,Bp scrn perf rec interval
+G8785,Bp scrn no perf at interval
+G8844,No ahi rdi rei ini dx no rsn
+G8864,Pneumococcal vaccine admin
+G8867,No pneumococcal admin
+G8907,Pt doc no events on discharg
+G8916,Pt w iv ab given on time
+G8918,Pt w/o preop order iv ab pro
+G8923,Lvef <= 40% or lvsd
+G8924,Spir res doc fev1/fvc<70%
+G8935,Rx ace or arb therapy
+G8942,Doc fcn/care plan w/30 days
+G8950,"Pre-htn or htn doc, f/u indc"
+G8952,"Pre-htn/htn, no f/u, not gvn"
+G8967,Warf or other fda drug presc
+G9001,"Mccd, initial rate"
+G9002,"Mccd,maintenance rate"
+G9004,"Mccd, risk adj lo, initial"
+G9005,"Mccd, risk adj, maintenance"
+G9007,"Mccd, sch team conf"
+G9008,"Mccd,phys coor-care ovrsght"
+G9012,Other specified case mgmt
+G9016,Demo-smoking cessation coun
+G9189,Beta pres or already taking
+G9226,3 comp foot exam completed
+G9228,Gc chl syp documented
+G9231,Doc esrd dia trans preg
+G9273,Sys<140 and dia<90
+G9275,Doc of non tobacco user
+G9276,Doc of tobacco user
+G9311,No surg site infection
+G9321,Prev ct nuc med cnt doc 12mo
+G9322,No cnt ct nuc med doc 12mo
+G9347,No follow up pulm nod norsn
+G9368,>= 2 same hi-rsk med not ord
+G9418,Lungcx bx rpt docs class
+G9419,Med reas not incl histo type
+G9420,Spec site no lung
+G9421,Lung cx bx rpt no doc class
+G9422,Rpt doc class histo type
+G9423,Med reas rpt no histo type
+G9424,Site no lung or lung cx
+G9427,No impro med time pain med
+G9428,Patho rpt incl pt ctg
+G9430,Spec site no cutaneous
+G9473,Chap services at hospice
+G9500,Rad expos ind/exp tm doc
+G9501,Rad expos ind/exp tm no doc
+G9507,Doc reas on statin or contra
+G9547,Cys ren les or adren
+G9548,No f/u rec image study
+G9550,Imag rec
+G9551,Imag no les
+G9552,Inc thyr node <1.0 in rpt
+G9554,Ct/cta/mri/a chst foll rec
+G9556,Ct/cta/mri/a no follup imag
+G9557,Ct/cta/mri/a no thyr <1.0cm
+G9622,No unheal etoh user
+G9637,Doc >1 dose reduc tech
+G9638,No doc >1 dose reduc tech
+G9642,Current smoker
+G9643,Elective surgery
+G9654,Mon anesth care
+G9655,Toc tool incl key elem
+G9664,Taking statin or rec'd order
+G9665,No statin/no order statin
+G9692,Hosp recd by pt dur msmt per
+G9695,Long act inhal bronchdil pre
+G9699,Long inhal bronchdil no pres
+G9708,Bilat mast/hx bi /unilat mas
+G9710,Pt prov hosp srv msmt per
+G9717,Doc pt dx bipol
+G9720,Hospice anytime msmt per
+G9740,Hosp srv to pt dur msmt per
+G9744,Pt not eli d/t act dig htn
+G9745,Doc rsn no hbp scrn or f/u
+G9754,Incid pulm nodule
+G9755,Doc med rsn no fllw up
+G9769,Bn den 2yr/got ost med/ther
+G9771,"Anes end, 1 temp >35.5(95.9)"
+G9775,Recd 2 anti-emet pre/intraop
+G9781,Doc rsn no statin
+G9785,Path report sent
+G9796,Pt currently on statin
+G9797,Pt not currently on statin
+G9899,Scrn mam perf rslts doc
+G9900,Scrn mam perf rslts not doc
+G9901,Pt 66+ snp or ltc pos > 90d
+G9902,Pt scrn tbco and id as user
+G9903,Pt scrn tbco id as non user
+G9905,No pt tbco scrn rng
+G9906,Pt recv tbco cess interv
+G9908,No pt tbco cess interv rng
+G9916,Funct status past 12 months
+G9919,Scrn nd pos nd prov of rec
+G9920,Scrning perf and negative
+G9923,Safty cncrns scrn and neg
+G9925,No scrn prov rsn nos
+G9968,Pt refrd 2 pvdr/spclst in pp
+G9969,Pvdr rfrd pt rprt rcvd
+G9988,Pall serv during meas
+G9996,Doc pt pal or hospice
+H0001,Alcohol and/or drug assess
+H0002,Alcohol and/or drug screenin
+H0003,Alcohol and/or drug screenin
+H0004,Alcohol and/or drug services
+H0005,Alcohol and/or drug services
+H0006,Alcohol and/or drug services
+H0010,Alcohol and/or drug services
+H0015,Alcohol and/or drug services
+H0016,Alcohol and/or drug services
+H0018,Alcohol and/or drug services
+H0020,Alcohol and/or drug services
+H0022,Alcohol and/or drug interven
+H0023,Alcohol and/or drug outreach
+H0030,Alcohol and/or drug hotline
+H0031,Mh health assess by non-md
+H0032,Mh svc plan dev by non-md
+H0033,Oral med adm direct observe
+H0034,Med trng & support per 15min
+H0035,Mh partial hosp tx under 24h
+H0036,Comm psy face-face per 15min
+H0038,Self-help/peer svc per 15min
+H0039,Asser com tx face-face/15min
+H0043,"Supported housing, per diem"
+H0046,"Mental health service, nos"
+H0047,Alcohol/drug abuse svc nos
+H0048,Spec coll non-blood:a/d test
+H0049,Alcohol/drug screening
+H2000,Comp multidisipln evaluation
+H2010,Comprehensive med svc 15 min
+H2011,"Crisis interven svc, 15 min"
+H2013,"Psych hlth fac svc, per diem"
+H2014,"Skills train and dev, 15 min"
+H2015,"Comp comm supp svc, 15 min"
+H2016,"Comp comm supp svc, per diem"
+H2017,"Psysoc rehab svc, per 15 min"
+H2018,"Psysoc rehab svc, per diem"
+H2019,"Ther behav svc, per 15 min"
+H2020,"Ther behav svc, per diem"
+H2024,"Supported employ, per diem"
+H2026,"Supp maint employ, per diem"
+H2027,"Psychoed svc, per 15 min"
+H2038,Skill train and dev/diem
+J0121,"Inj., omadacycline, 1 mg"
+J0129,Abatacept injection
+J0131,"Inj, acetaminophen (nos)"
+J0133,Acyclovir injection
+J0134,Inj acetaminophen -fresenius
+J0136,"Inj, acetaminophen (b braun)"
+J0137,"Inj, acetaminophen (hikma)"
+J0153,Adenosine inj 1mg
+J0162,Inj epinephrine (fresenius)
+J0163,Epinephrine in nacl (endo)
+J0165,Inj epinephrine nos 0.1 mg
+J0166,Inj epinephrine (bpi)
+J0167,Inj epinephrine (hospira)
+J0168,Epinephrine (intl med sys)
+J0169,Inj epinephrine (adrenalin)
+J0174,"Lecanemab-irmb, for iv inj"
+J0175,"Inj, donanemab-azbt, 2 mg"
+J0177,"Inj, aflibercept hd, 1 mg"
+J0178,Aflibercept injection
+J0184,"Inj, amisulpride, 1 mg"
+J0185,"Inj., aprepitant, 1 mg"
+J0209,"Inj, sod thiosulfate (hope)"
+J0278,Amikacin sulfate injection
+J0280,Aminophyllin 250 mg inj
+J0282,Amiodarone hcl
+J0283,"Inj, amiodarone (nexterone)"
+J0287,Amphotericin b lipid complex
+J0295,Ampicillin sulbactam 1.5 gm
+J0330,Succinycholine chloride inj
+J0349,"Inj, rezafungin, 1 mg"
+J0360,Hydralazine hcl injection
+J0456,Azithromycin
+J0461,Atropine sulfate injection
+J0462,"Atropine sulf, nte, 0.01 mg"
+J0463,Inj atropine (fresenius te)
+J0517,"Inj., benralizumab, 1 mg"
+J0574,Bupren/nal 6.1 to 10mg bupre
+J0583,Bivalirudin
+J0585,"Injection,onabotulinumtoxina"
+J0588,Incobotulinumtoxin a
+J0601,Sevelamer carbonate 20 mg
+J0604,"Cinacalcet, esrd on dialysis"
+J0605,Sucroferric oxyhydroxide 5mg
+J0609,Ferric citrate orl 3 mg iron
+J0612,"Inj, calcium gluconate, nos"
+J0613,Calcium glucon (wg critical)
+J0615,"Calcium acetate, oral, 23 mg"
+J0616,Inj metoprolol tartrate 1 mg
+J0618,"Inj, calcium chloride, 2 mg"
+J0630,Calcitonin salmon injection
+J0640,Leucovorin calcium injection
+J0665,"Inj, bupivacaine, nos, 0.5mg"
+J0666,"Inj, bupivacaine liposome"
+J0668,"Instill, bupivac and meloxic"
+J0670,Inj mepivacaine hcl/10 ml
+J0687,Inj cefazolin (wg crit care)
+J0688,"Inj cefazolin sodium, hikma"
+J0689,"Inj cefazolin sodium, baxter"
+J0690,Cefazolin sodium injection
+J0692,Cefepime hcl for injection
+J0694,Cefoxitin sodium injection
+J0696,Ceftriaxone sodium injection
+J0697,Sterile cefuroxime injection
+J0702,Betamethasone acet&sod phosp
+J0703,"Inj, cefepime hcl (b braun)"
+J0736,"Inj, clindamycin phosp 300mg"
+J0737,"Inj, clindamycin (baxter)"
+J0744,Ciprofloxacin iv
+J0759,"Inj, clevidipine, 1 mg"
+J0780,Prochlorperazine injection
+J0834,"Inj., cosyntropin, 0.25 mg"
+J0875,"Injection, dalbavancin"
+J0878,Daptomycin injection
+J0881,"Darbepoetin alfa, non-esrd"
+J0882,"Darbepoetin alfa, esrd use"
+J0885,"Epoetin alfa, non-esrd"
+J0887,Epoetin beta esrd use
+J0894,Decitabine injection
+J0896,Inj luspatercept-aamt 0.25mg
+J0897,Denosumab injection
+J1010,"Inj, methylpred acetate 1 mg"
+J1030,Methylprednisolone 40 mg inj
+J1050,Medroxyprogesterone acetate
+J1071,Inj testosterone cypionate
+J1096,Dexametha opth insert 0.1 mg
+J1097,Phenylep ketorolac opth soln
+J1100,Dexamethasone sodium phos
+J1105,"Dexmedetomidine film, 1 mcg"
+J1120,Acetazolamid sodium injectio
+J1160,Digoxin injection
+J1163,"Inj, diltiazem hcl, 0.5 mg"
+J1164,Inj diltiazem in 0.72% nacl
+J1171,"Inj, hydromorphone, 0.1 mg"
+J1190,Dexrazoxane hcl injection
+J1200,Diphenhydramine hcl injectio
+J1201,Inj. cetirizine hcl 0.5mg
+J1250,Inj dobutamine hcl/250 mg
+J1270,"Injection, doxercalciferol"
+J1271,Inj doxycycline hyclate 1 mg
+J1299,"Inj, eculizumab, 2 mg"
+J1303,"Inj., ravulizumab-cwvz 10 mg"
+J1306,"Injection, inclisiran, 1 mg"
+J1308,"Inj, famotidine, 0.25 mg"
+J1335,Ertapenem injection
+J1434,"Inj, focinvez, 1mg"
+J1437,Inj. fe derisomaltose 10 mg
+J1439,Inj ferric carboxymaltos 1mg
+J1442,Inj filgrastim excl biosimil
+J1447,Inj tbo filgrastim 1 microg
+J1448,"Injection, trilaciclib, 1mg"
+J1449,Inj eflapegrastim-xnst 0.1mg
+J1450,Fluconazole
+J1453,Fosaprepitant injection
+J1454,"Inj fosnetupitant, palonoset"
+J1459,Inj ivig privigen 500 mg
+J1561,Gamunex-c/gammaked
+J1568,Octagam injection
+J1569,Gammagard liquid/erc inj
+J1580,Garamycin gentamicin inj
+J1596,"Inj, glycopyrrolate, 0.1 mg"
+J1597,"Inj glycopyrrolate, glyrx-pf"
+J1602,Golimumab for iv use 1mg
+J1610,Glucagon hydrochloride/1 mg
+J1611,"Inj glucagon hcl, fresenius"
+J1626,Granisetron hcl injection
+J1627,"Inj, granisetron, xr, 0.1 mg"
+J1630,Haloperidol injection
+J1642,Inj heparin sodium per 10 u
+J1643,"Inj heparin, pfizer, 1000u"
+J1644,Inj heparin sodium per 1000u
+J1650,Inj enoxaparin sodium
+J1720,Hydrocortisone sodium succ i
+J1741,Ibuprofen injection
+J1745,Infliximab not biosimil 10mg
+J1750,Inj iron dextran
+J1756,Iron sucrose injection
+J1790,Droperidol injection
+J1805,"Inj, esmolol hcl, 10mg"
+J1808,"Inj, folic acid, 0.1 mg"
+J1815,Insulin injection
+J1817,Insulin for insulin pump use
+J1836,"Inj, metronidazole, 10 mg"
+J1885,Ketorolac tromethamine inj
+J1920,"Inj, labetalol hcl, 5mg"
+J1921,"Inj labetalol hcl hikma, 5mg"
+J1930,Lanreotide injection
+J1938,"Inj, furosemide, 1 mg"
+J1939,"Inj, bumetanide, 0.5 mg"
+J1941,"Inj, furoscix, 20 mg"
+J1950,Leuprolide acetate /3.75 mg
+J1953,Levetiracetam injection
+J1956,Levofloxacin injection
+J2002,"Inj, lidocaine in d5w, 1 mg"
+J2003,"Inj, lidocaine hcl, 1 mg"
+J2004,"Inj, lidocaine w epinephrine"
+J2010,Lincomycin injection
+J2020,Linezolid injection
+J2060,Lorazepam injection
+J2151,"Inj, mannitol, 250 mg"
+J2175,Meperidine hydrochl /100 mg
+J2182,"Injection, mepolizumab, 1mg"
+J2185,Meropenem
+J2212,Methylnaltrexone injection
+J2248,Micafungin sodium injection
+J2249,"Inj, remimazolam, 1 mg"
+J2250,Inj midazolam hydrochloride
+J2251,Inj midazolam in 0.9% nacl
+J2260,Inj milrinone lactate / 5 mg
+J2270,Morphine sulfate injection
+J2272,"Inj, morphine (fresenius)"
+J2274,Inj morphine pf epid ithc
+J2278,Ziconotide injection
+J2305,"Inj, nitroglycerin, 5 mg"
+J2312,"Inj naloxone hcl nos, 0.01mg"
+J2323,Natalizumab injection
+J2327,Inj risankizumab-rzaa 1 mg
+J2353,"Octreotide injection, depot"
+J2354,"Octreotide inj, non-depot"
+J2357,Omalizumab injection
+J2359,"Inj. olanzapine, 0.5mg"
+J2360,Orphenadrine injection
+J2371,Inj phenylephrine hcl 20 mcg
+J2372,"Inj, biorphen, 20 micrograms"
+J2373,"Inj, immphentiv, 20 mcg"
+J2401,Chloroprocaine hcl injection
+J2403,"Chloroprocaine opht gel, 1mg"
+J2404,"Inj, nicardipine 0.1 mg"
+J2405,Ondansetron hcl injection
+J2430,Pamidronate disodium /30 mg
+J2440,Papaverin hcl injection
+J2468,"Inj, palonosetron (posfrea)"
+J2469,Palonosetron hcl
+J2470,Inj pantoprazole sodium 40mg
+J2471,Inj pantoprazole(hikma) 40mg
+J2501,Paricalcitol
+J2506,Inj pegfilgrast ex bio 0.5mg
+J2516,"Inj, pentamidine isethionate"
+J2543,Piperacillin/tazobactam
+J2550,Promethazine hcl injection
+J2560,Phenobarbital sodium inj
+J2596,Vasopressin (long grove) 1 u
+J2597,Inj desmopressin acetate
+J2598,"Inj, vasopressin, 1 unit"
+J2599,Inj vasopressin (am reg) 1 u
+J2700,Oxacillin sodium injeciton
+J2704,"Inj, propofol, 10 mg"
+J2710,Neostigmine methylslfte inj
+J2720,Inj protamine sulfate/10 mg
+J2765,Metoclopramide hcl injection
+J2777,"Inj, faricimab-svoa, 0.1mg"
+J2781,"Inj, pegcetacoplan, 1mg"
+J2782,Inj avacincaptad pegol 0.1mg
+J2783,Rasburicase
+J2785,Regadenoson injection
+J2795,Ropivacaine hcl injection
+J2800,Methocarbamol injection
+J2802,"Inj, romiplostim 1 microgram"
+J2805,Sincalide injection
+J2865,Inj sulfameth/trim 5 mg/1 mg
+J2916,Na ferric gluconate complex
+J2919,"Inj, methylpred sod succ 5mg"
+J2997,Alteplase recombinant
+J3010,Fentanyl citrate injection
+J3111,Inj. romosozumab-aqqg 1 mg
+J3243,Tigecycline injection
+J3245,"Inj., tildrakizumab, 1 mg"
+J3260,Tobramycin sulfate injection
+J3262,Tocilizumab injection
+J3263,"Inj, toripalimab-tpzi, 1 mg"
+J3290,"Inj, tranexamic acid 5 mg"
+J3291,Tranexamic acid in sod chlor
+J3300,Triamcinolone a inj prs-free
+J3301,Triamcinolone acet inj nos
+J3304,Inj triamcinolone ace xr 1mg
+J3315,Triptorelin pamoate
+J3360,Diazepam injection
+J3373,"Inj, vancomycin hcl, 10 mg"
+J3374,"Inj, vancomycin (mylan) 10mg"
+J3375,"Inj, vanco (tyzavan) 10mg"
+J3376,Inj vancomycin (hikma) 10mg
+J3380,Inj vedolizumab iv 1 mg
+J3410,Hydroxyzine hcl injection
+J3411,Thiamine hcl 100 mg
+J3415,Pyridoxine hcl 100 mg
+J3420,Vitamin b12 injection
+J3430,Vitamin k phytonadione inj
+J3465,"Injection, voriconazole"
+J3470,Hyaluronidase injection
+J3475,Inj magnesium sulfate
+J3480,Inj potassium chloride
+J3486,Ziprasidone mesylate
+J3489,Zoledronic acid 1mg
+J3490,Drugs unclassified injection
+J3535,Metered dose inhaler drug
+J3590,Unclassified biologics
+J7030,Normal saline solution infus
+J7040,Normal saline solution infus
+J7042,5% dextrose/normal saline
+J7050,Normal saline solution infus
+J7060,5% dextrose/water
+J7070,D5w infusion
+J7120,Ringers lactate infusion
+J7121,5% dextrose in lac ringers
+J7131,Hypertonic saline sol
+J7165,"Inj, human-lans, per i.u"
+J7168,Prothrombin complex kcentra
+J7298,"Mirena, 52 mg"
+J7308,Aminolevulinic acid hcl top
+J7312,Dexamethasone intra implant
+J7318,"Inj, durolane 1 mg"
+J7320,"Genvisc 850, inj, 1mg"
+J7321,Hyalgan supartz visco-3 dose
+J7323,Euflexxa inj per dose
+J7324,Orthovisc inj per dose
+J7325,Synvisc or synvisc-one
+J7327,Monovisc inj per dose
+J7507,Tacrolimus imme rel oral 1mg
+J7509,Methylprednisolone oral
+J7510,Prednisolone oral per 5 mg
+J7512,Prednisone ir or dr oral 1mg
+J7515,Cyclosporine oral 25 mg
+J7517,Mycophenolate mofetil oral
+J7518,Mycophenolic acid
+J7601,Ensifentrine inh 3 mg
+J7605,Arformoterol non-comp unit
+J7606,"Formoterol fumarate, inh"
+J7608,Acetylcysteine non-comp unit
+J7609,Albuterol comp unit
+J7611,Albuterol non-comp con
+J7612,Levalbuterol non-comp con
+J7613,Albuterol non-comp unit
+J7614,Levalbuterol non-comp unit
+J7620,Albuterol ipratrop non-comp
+J7626,Budesonide non-comp unit
+J7644,Ipratropium bromide non-comp
+J7674,"Methacholine chloride, neb"
+J7677,Revefenacin inh non-com 1mcg
+J7799,Non-inhalation drug for dme
+J7999,"Compounded drug, noc"
+J8499,Oral prescrip drug non chemo
+J8501,Oral aprepitant
+J8502,"Inj, aponvie, 1 mg"
+J8540,Oral dexamethasone
+J8597,Antiemetic drug oral nos
+J8999,Oral prescription drug chemo
+J9000,Doxorubicin hcl injection
+J9011,"Datopotamab deruxtecan, 1 mg"
+J9017,Arsenic trioxide injection
+J9022,"Inj, atezolizumab,10 mg"
+J9024,Inj atezolizumb 5mg hya-tqjs
+J9025,Azacitidine injection
+J9026,"Inj, tarlatamab-dlle, 1 mg"
+J9030,Bcg live intravesical 1mg
+J9033,"Inj, bendamustine (nos) 1mg"
+J9034,"Inj., bendeka 1 mg"
+J9035,Bevacizumab injection
+J9036,Inj. belrapzo/bendamustine
+J9040,Bleomycin sulfate injection
+J9041,"Injection, bortezomib, 0.1mg"
+J9042,Brentuximab vedotin inj
+J9043,Cabazitaxel injection
+J9045,Carboplatin injection
+J9047,"Injection, carfilzomib, 1 mg"
+J9055,Cetuximab injection
+J9056,"Inj, vivimusta, 1 mg"
+J9060,Cisplatin 10 mg injection
+J9061,"Inj, amivantamab-vmjw"
+J9062,Inj amivantamab 5mg hyaluron
+J9071,Inj cyclophosphamd auromedic
+J9072,Inj cyclophos frindovyx 5 mg
+J9073,Inj cyclophos dr reddys 5 mg
+J9074,"Inj, cyclophosphamd, sandoz"
+J9075,"Inj, cyclophosphamide, nos"
+J9076,"Inj, cyclophos (baxter) 5mg"
+J9119,"Inj., cemiplimab-rwlc, 1 mg"
+J9130,Dacarbazine 100 mg inj
+J9144,"Daratumumab, hyaluronidase"
+J9145,"Injection, daratumumab 10 mg"
+J9155,Degarelix injection
+J9171,Docetaxel injection
+J9173,"Inj., durvalumab, 10 mg"
+J9177,Inj enfort vedo-ejfv 0.25mg
+J9179,Eribulin mesylate injection
+J9181,Etoposide injection
+J9184,Inj gemcitabin (avyxa) 200mg
+J9185,Fludarabine phosphate inj
+J9190,Fluorouracil injection
+J9200,Floxuridine injection
+J9201,In gemcitabine hcl nos 200mg
+J9202,Goserelin acetate implant
+J9205,Inj irinotecan liposome 1 mg
+J9206,Irinotecan injection
+J9217,Leuprolide acetate suspnsion
+J9223,"Inj. lurbinectedin, 0.1 mg"
+J9228,Ipilimumab injection
+J9232,Inj docetaxel (hospira) 1 mg
+J9260,Inj methotrexate sodium 50mg
+J9263,Oxaliplatin
+J9264,Paclitaxel protein bound
+J9267,Paclitaxel injection
+J9271,Inj pembrolizumab
+J9272,"Inj, dostarlimab-gxly, 10 mg"
+J9277,Pembrolizumab 1mg berahyalur
+J9278,"Inj, carboplatin (avyxa)"
+J9280,Mitomycin injection
+J9281,Mitomycin instillation
+J9289,Inj nivolumab 2 mg hyaluron
+J9292,"Inj, pemetrexed dipotassium"
+J9294,"Inj pemetrexed, hospira 10mg"
+J9298,Inj nivol relatlimab 3mg/1mg
+J9299,"Injection, nivolumab"
+J9303,Panitumumab injection
+J9304,"Inj. pemetrexed, 10 mg"
+J9305,Inj. pemetrexed nos 10mg
+J9306,"Injection, pertuzumab, 1 mg"
+J9308,"Injection, ramucirumab"
+J9309,"Inj, polatuzumab vedotin 1mg"
+J9311,"Inj rituximab, hyaluronidase"
+J9312,"Inj., rituximab, 10 mg"
+J9316,"Pertuzu, trastuzu, 10 mg"
+J9317,Sacituzumab govitecan-hziy
+J9321,Inj epcoritamab-bysp 0.16 mg
+J9324,"Inj, pemrydi rtu, 10 mg"
+J9326,Telisotuzumab vedotin-tllv
+J9329,"Inj, tislelizumab-jsgr"
+J9331,Inj sirolimus prot part 1 mg
+J9334,Inj efgart-alfa 2mg hya-qvfc
+J9345,"Inj, retifanlimab-dlwr, 1 mg"
+J9347,"Inj, tremelimumab-actl, 1 mg"
+J9351,Topotecan injection
+J9352,Injection trabectedin 0.1mg
+J9355,Inj trastuzumab excl biosimi
+J9358,Inj fam-trastu deru-nxki 1mg
+J9360,Vinblastine sulfate inj
+J9370,Vincristine sulfate 1 mg inj
+J9380,Inj teclistamab cqyv 0.5 mg
+J9390,Vinorelbine tartrate inj
+J9395,"Injection, fulvestrant"
+J9999,Chemotherapy drug
+K0001,Standard wheelchair
+K0002,Stnd hemi (low seat) whlchr
+K0003,Lightweight wheelchair
+K0004,High strength ltwt whlchr
+K0005,Ultralightweight wheelchair
+K0006,Heavy duty wheelchair
+K0007,Extra heavy duty wheelchair
+K0040,Adjustable angle footplate
+K0052,Swingaway detach ftrest repl
+K0053,Elevate footrest articulate
+K0108,W/c component-accessory nos
+K0195,Elevating whlchair leg rests
+K0606,Aed garment w elec analysis
+K0733,12-24hr sealed lead acid
+K0738,Portable gas oxygen system
+K0739,Repair/svc dme non-oxygen eq
+K0800,Pov group 1 std up to 300lbs
+K0801,Pov group 1 hd 301-450 lbs
+K0821,Pwc gp 2 std port cap chair
+K0823,Pwc gp 2 std cap chair
+K0831,Pwc gp2 std seat elevate cap
+K0835,Pwc gp2 std sing pow opt s/b
+K0856,Pwc gp3 std sing pow opt s/b
+K0861,Pwc gp3 std mult pow opt s/b
+L0120,Cerv flex n/adj foam pre ots
+L0170,Cervical collar molded to pt
+L0172,Cerv col sr foam 2pc pre ots
+L0174,Cerv sr 2pc thor ext pre ots
+L0180,Cer post col occ/man sup adj
+L0456,Tlso flex trnk sj-ss pre cst
+L0457,Tlso flex trnk sj-ss pre ots
+L0464,Tlso 4mod sacro-scap pre
+L0627,Lo sag ri an/pos pnl pre cst
+L0637,Lso sc r ant/pos pnl pre cst
+L0642,Lo sag ri an/pos pnl pre ots
+L0648,Lso sag r an/pos pnl pre ots
+L0650,Lso sc r ant/pos pnl pre ots
+L0651,Lso sag-co shell pnl pre ots
+L1686,Ho post-op hip abduction
+L1690,Combination bilateral ho
+L1820,Ko elas w/ condyle pads & jo
+L1821,Ko elas w/ condyle pads otf
+L1830,Ko immob canvas long pre ots
+L1832,Ko adj jnt pos r sup pre cst
+L1833,Ko adj jnt pos r sup pre ots
+L1844,Ko w/adj jt rot cntrl molded
+L1845,Ko double upright pre cst
+L1850,Ko swedish type pre ots
+L1851,Ko single upright prefab ots
+L1852,Ko double upright prefab ots
+L1902,Afo ankle gauntlet pre ots
+L1906,Afo multilig ank sup pre ots
+L1930,Afo plastic
+L1932,Afo rig ant tib tcf/= custom
+L1951,Afo spiral prefab custom
+L1960,Afo pos solid ank plastic mo
+L1970,Afo plastic molded w/ankle j
+L1971,"Ankl foot ortho, customi fit"
+L2034,Kafo pla sin up w/wo k/a cus
+L2200,Limited ankle motion ea jnt
+L2210,Dorsiflexion assist each joi
+L2270,Varus/valgus strap padded/li
+L2275,Plastic mod low ext pad/line
+L2397,Suspension sleeve lower ext
+L2820,Soft interface below knee se
+L3000,Ft insert ucb berkeley shell
+L3010,Foot longitudinal arch suppo
+L3060,Foot arch supp longitud/meta
+L3219,Orthopedic mens shoes oxford
+L3222,Mens shoes hightop depth inl
+L3260,Ambulatory surgical boot eac
+L3650,So 8 abd restraint pre ots
+L3660,So 8 ab rstr can/web pre ots
+L3670,So acro/clav can web pre ots
+L3702,Eo w/o joints cf
+L3730,Forearm/arm cuffs ext/flex a
+L3761,"Eo, adj lock joint prefab ot"
+L3763,Ewho rigid w/o jnts cf
+L3807,Whfo w/o joints pre cst
+L3808,"Whfo, rigid w/o joints"
+L3809,Whfo w/o joints pre ots
+L3905,Who w/nontorsion jnt(s) cf
+L3908,Who cock-up nonmolde pre ots
+L3916,Who nontorsion jnts pre ots
+L3924,Hfo without joints pre ots
+L3925,Fo pip dip jnt/sprng pre ots
+L3927,Fo pip dip no jt spr pre ots
+L3933,Fo w/o joints cf
+L3935,Fo nontorsion joint cf
+L3960,Sewho airplan desig abdu pos
+L4350,Ankle control ortho pre ots
+L4361,Pneuma/vac walk boot pre ots
+L4387,Non-pneum walk boot pre ots
+L4396,Static or dynami afo pre cst
+L4397,Static or dynami afo pre ots
+L5000,Sho insert w arch toe filler
+L5321,Ak open end sach
+L5624,Test socket above knee
+L5631,Ak/knee disartic acrylic soc
+L5649,Isch containmt/narrow m-l so
+L5650,Tot contact ak/knee disart s
+L5671,Bk/ak locking mechanism
+L5673,Socket insert w lock mech
+L5679,Socket insert w/o lock mech
+L5783,Add low ext mec limb vol lam
+L5812,Endo knee-shin frct swg & st
+L5850,Endo ak/hip knee extens assi
+L5920,Endo ak/hip alignable system
+L5925,Above knee manual lock
+L5950,Endo ak ultra-light material
+L5972,Flexible keel foot
+L5986,Multi-axial rotation unit
+L8000,Mastectomy bra
+L8020,Mastectomy form
+L8030,Breast prosth w/o adhes any
+L8400,Sheath below knee
+L8417,Pros sheath/sock w gel cushn
+L8420,Prosthetic sock multi ply bk
+L8430,Prosthetic sock multi ply ak
+L8440,Shrinker below knee
+L8460,Shrinker above knee
+L8470,Pros sock single ply bk
+L8480,Pros sock single ply ak
+L8501,Tracheostomy speaking valve
+L8509,Trach-esoph voice pros md in
+L8510,Voice amplifier
+L8513,Trach pros cleaning device
+L8514,Repl trach puncture dilator
+L8600,Implant breast silicone/eq
+L8610,Ocular implant
+L8612,Aqueous shunt prosthesis
+L8614,Cochlear device
+L8679,Imp neurosti pls gn any type
+L8699,Prosthetic implant nos
+L9900,O&p supply/accessory/service
+M0010,Eom meos payment
+M1007,>=50% total pt outpt ra enct
+M1018,Pt dx hst cr pt sk lg cr scr
+M1069,Pt scr ft fall rsk
+M1150,Lvef <=40% or mod/sev l vsf
+M1159,Hospc serv dur meas pd
+M1164,Pt w/ dementia any time
+M1168,Pt recd flu vax 7/1-6/30
+M1170,Pt w/o flu vax 7/1-6/30
+M1171,Pt recd 1 td/tdap 9yrs prior
+M1173,Pt no rec td/tdap 9yrs prior
+M1174,Pt w/ 2 hzv 10/2017 - mp
+M1176,No 2 hzv 10/2017-meas pd
+M1177,Pt recd pcv on/aft 19
+M1179,No pcv recd
+M1189,Doc khe pef w/efgr/uacr
+M1193,Rpts w/ imp/con mmr/msi
+M1195,Rpt wo imp/con mmr/msi
+M1207,Pt scrn sdoh
+M1208,Pt no scrn sdoh
+M1209,>=2 same hi-rsk med w/o diag
+M1210,>=2 same meds tbl4 not ord
+M1211,Gsa level>9.0%
+M1212,Missing gsa not perf
+M1214,Spiro results wth obs doc
+M1216,No spiro doc no res doc
+M1218,Pt copd symptoms
+M1223,Glaucoma plan of care doc
+M1224,Iop dec <20% from base
+M1225,Iop dec>=20% from base
+M1237,Pt rsn no scrn
+M1238,Doc 2nd recom hzv 2-6 mo int
+M1286,Bmi doc onl fup not cmpltd
+M1299,Flu immunize order/admin
+M1300,Flu imm no admin doc rea
+M1305,Pneum vax admin 19+
+M1308,Flu immunize no admin
+M1339,Pts f/u 30-180 dys + improv
+M1371,Mst rec gsa<7
+M1372,Mst rec gsa >=7 and<8
+M1373,Mst rec gsa >=8 and <=9
+M1417,Pt up to date cov
+M1419,Pt not up to date cov
+M1420,Complete ophthalmologic mvp
+M1492,No reported fall
+P9011,Blood split unit
+P9016,Rbc leukocytes reduced
+P9021,Red blood cells unit
+P9035,Platelet pheres leukoreduced
+P9037,Plate pheres leukoredu irrad
+P9038,Rbc irradiated
+P9040,Rbc leukoreduced irradiated
+P9041,"Albumin (human),5%, 50ml"
+P9045,"Albumin (human), 5%, 250 ml"
+P9046,"Albumin (human), 25%, 20 ml"
+P9047,"Albumin (human), 25%, 50ml"
+P9073,Platelets pheresis path redu
+P9100,Pathogen test for platelets
+P9603,One-way allow prorated miles
+P9604,One-way allow prorated trip
+P9612,Catheterize for urine spec
+Q0091,Obtaining screen pap smear
+Q0092,Set up port xray equipment
+Q0111,Wet mounts/ w preparations
+Q0112,Potassium hydroxide preps
+Q0138,"Ferumoxytol, non-esrd"
+Q0139,"Ferumoxytol, esrd use"
+Q0144,"Azithromycin dihydrate, oral"
+Q0162,Ondansetron oral
+Q0163,Diphenhydramine hcl 50mg
+Q0164,Prochlorperazine maleate 5mg
+Q0166,Granisetron hcl 1 mg oral
+Q0167,Dronabinol 2.5mg oral
+Q0175,Perphenazine 4mg oral
+Q0510,Dispens fee immunosupressive
+Q0511,"Sup fee antiem,antica,immuno"
+Q0512,Px sup fee anti-can sub pres
+Q0513,Disp fee inhal drugs/30 days
+Q0514,Disp fee inhal drugs/90 days
+Q2009,Fosphenytoin inj pe
+Q2050,Doxorubicin inj 10mg
+Q3014,Telehealth facility fee
+Q4010,Cast sup sht arm adult fbrgl
+Q4018,Cast sup lng arm splint fbrg
+Q4022,Cast sup sht arm splint fbrg
+Q4038,Cast sup shrt leg fiberglass
+Q4046,Cast sup sht leg splnt fbrgl
+Q4081,"Epoetin alfa, 100 units esrd"
+Q4102,Oasis wound matrix
+Q4133,Grafix stravix prime pl sqcm
+Q4186,Epifix 1 sq cm
+Q4205,Membrane graft or wrap sq cm
+Q5001,Hospice or home hlth in home
+Q5002,Hospice/home hlth in asst lv
+Q5003,Hospice in lt/non-skilled nf
+Q5004,Hospice in snf
+Q5005,"Hospice, inpatient hospital"
+Q5006,Hospice in hospice facility
+Q5009,"Hospice/home hlth, place nos"
+Q5010,Hospice home care in hospice
+Q5101,"Injection, zarxio"
+Q5103,"Injection, inflectra"
+Q5104,"Injection, renflexis"
+Q5105,Inj retacrit esrd on dialysi
+Q5106,Inj retacrit non-esrd use
+Q5107,Inj mvasi 10 mg
+Q5108,"Injection, fulphila"
+Q5110,Nivestym
+Q5111,"Injection, udenyca 0.5 mg"
+Q5113,Inj herzuma 10 mg
+Q5114,Inj ogivri 10 mg
+Q5115,Inj truxima 10 mg
+Q5117,"Inj., kanjinti, 10 mg"
+Q5118,"Inj., zirabev, 10 mg"
+Q5119,"Inj ruxience, 10 mg"
+Q5120,Inj pegfilgrastim-bmez 0.5mg
+Q5122,"Inj, nyvepria"
+Q5123,"Inj. riabni, 10 mg"
+Q5125,"Inj, releuko 1 mcg"
+Q5126,Inj alymsys 10 mg
+Q5127,"Inj, stimufend, 0.5 mg"
+Q5129,"Inj, vegzelma, 10 mg"
+Q5130,"Inj, fylnetra, 0.5 mg"
+Q5136,"Inj. denosumab-bbdz, 1 mg"
+Q5146,"Inj, hercessi, 10 mg"
+Q5147,"Inj, aflibercept-ayyh, 1 mg"
+Q5157,"Inj, denosumab-bmwo, 1 mg"
+Q5158,"Inj, denosumab-bnht, 1 mg"
+Q5162,"Inj, denosumab-nxxp, 1 mg"
+Q9950,Inj sulf hexa lipid microsph
+Q9956,"Inj octafluoropropane mic,ml"
+Q9957,"Inj perflutren lip micros,ml"
+Q9958,"Hocm <=149 mg/ml iodine, 1ml"
+Q9961,"Hocm 250-299mg/ml iodine,1ml"
+Q9963,"Hocm 350-399mg/ml iodine,1ml"
+Q9965,"Locm 100-199mg/ml iodine,1ml"
+Q9966,"Locm 200-299mg/ml iodine,1ml"
+Q9967,"Locm 300-399mg/ml iodine,1ml"
+Q9968,Visualization adjunct
+Q9983,Florbetaben f18 diagnostic
+R0070,Transport portable x-ray
+R0075,Transport port x-ray multipl
+S0109,Methadone oral 5mg
+S0119,Ondansetron 4 mg
+S0179,Megestrol 20 mg
+S0183,Prochlorperazine 5 mg
+S0201,Partial hospitalization serv
+S0207,Paramedicintercep nonhospals
+S0209,Wc van mileage per mi
+S0215,Nonemerg transp mileage
+S0255,Hospice refer visit nonmd
+S0265,Genetic counsel 15 mins
+S0271,Home hospice case 30 days
+S0280,"Medical home, initial plan"
+S0310,Hospitalist visit
+S0311,Comp mgmt care coord adv ill
+S0315,Disease management program
+S0316,Follow-up/reassessment
+S0317,Disease mgmt per diem
+S0340,Lifestyle mod 1st stage
+S0354,Cancer treatment plan change
+S0395,Impression casting ft
+S0500,Dispos cont lens
+S0518,Sunglass frames
+S0580,Polycarb lens
+S0581,Nonstnd lens
+S0612,Annual gynecological examina
+S0620,Routine ophthalmological exa
+S0621,Routine ophthalmological exa
+S1016,Non-pvc intravenous administ
+S2900,Robotic surgical system
+S3601,Stat lab home/nf
+S5000,"Prescription drug, generic"
+S5001,"Prescription drug,brand name"
+S5100,Adult daycare services 15min
+S5101,Adult day care per half day
+S5102,Adult day care per diem
+S5105,Centerbased day care perdiem
+S5108,Homecare train pt 15 min
+S5110,Family homecare training 15m
+S5125,Attendant care service /15m
+S5130,Homaker service nos per 15m
+S5135,Adult companioncare per 15m
+S5140,Adult foster care per diem
+S5150,Unskilled respite care /15m
+S5151,Unskilled respitecare /diem
+S5160,Emer response sys instal&tst
+S5161,Emer rspns sys serv permonth
+S5170,Homedelivered prepared meal
+S5175,"Laundry serv,ext,prof,/order"
+S5180,Hh respiratory thrpy in eval
+S5199,Personal care item nos each
+S5498,Hit simple cath care
+S5501,Hit complex cath care
+S5502,Hit interim cath care
+S8120,O2 contents gas cubic ft
+S8948,Low-level laser trmt 15 min
+S9083,Urgent care center global
+S9088,Services provided in urgent
+S9110,Telemonitoring/home per mnth
+S9122,Home health aide or certifie
+S9123,Nursing care in home rn
+S9124,"Nursing care, in the home; b"
+S9125,"Respite care, in the home, p"
+S9126,"Hospice care, in the home, p"
+S9127,"Social work visit, in the ho"
+S9128,"Speech therapy, in the home,"
+S9129,"Occupational therapy, in the"
+S9131,Pt in the home per diem
+S9328,Hit pain imp pump diem
+S9330,Hit cont chem diem
+S9338,Hit immunotherapy diem
+S9340,Hit enteral per diem
+S9341,Hit enteral grav diem
+S9342,Hit enteral pump diem
+S9343,Hit enteral bolus nurs
+S9359,Hit anti-tnf per diem
+S9364,Hit tpn total diem
+S9366,Hit tpn 2 liter diem
+S9374,Hit hydra 1 liter diem
+S9375,Hit hydra 2 liter diem
+S9401,Anticoag clinic per session
+S9430,Pharmacy comp/disp serv
+S9452,Nutrition class
+S9470,"Nutritional counseling, diet"
+S9480,Intensive outpatient psychia
+S9484,Crisis intervention per hour
+S9485,Crisis intervention mental h
+S9494,Hit antibiotic total diem
+S9500,Hit antibiotic q24h diem
+S9501,Hit antibiotic q12h diem
+S9502,Hit antibiotic q8h diem
+S9542,Ht inj noc per diem
+S9977,Meals per diem
+S9999,Sales tax
+T1000,Private duty/independent nsg
+T1001,Nursing assessment/evaluatn
+T1002,Rn services up to 15 minutes
+T1003,Lpn/lvn services up to 15min
+T1007,Treatment plan development
+T1013,Sign lang/oral interpreter
+T1014,"Telehealth transmit, per min"
+T1015,Clinic service
+T1016,Case management
+T1017,Targeted case management
+T1019,Personal care ser per 15 min
+T1020,Personal care ser per diem
+T1023,Program intake assessment
+T1028,Home environment assessment
+T1030,Rn home care per diem
+T1031,Lpn home care per diem
+T1040,Comm bh clinic svc per diem
+T1502,Medication admin visit
+T2001,N-et; patient attend/escort
+T2003,N-et; encounter/trip
+T2005,N-et; stretcher van
+T2007,Non-emer transport wait time
+T2012,"Habil ed waiver, per diem"
+T2014,"Habil prevoc waiver, per d"
+T2018,Habil sup empl waiver/diem
+T2020,Day habil waiver per diem
+T2021,Day habil waiver per 15 min
+T2022,"Case management, per month"
+T2023,Targeted case mgmt per month
+T2024,Serv asmnt/care plan waiver
+T2025,"Waiver service, nos"
+T2029,"Special med equip, noswaiver"
+T2031,Assist living waiver/diem
+T2033,"Res, nos waiver per diem"
+T2038,Comm trans waiver/service
+T2040,Financial mgt waiver/15min
+T2042,Hospice routine home care
+T2043,Hospice continuous home care
+T2044,Hospice respite care
+T2045,Hospice general care
+T2046,"Hospice long term care, r&b"
+T2049,"N-et; stretcher van, mileage"
+T4521,Adult size brief/diaper sm
+T4522,Adult size brief/diaper med
+T4523,Adult size brief/diaper lg
+T4524,Adult size brief/diaper xl
+T4525,Adult size pull-on sm
+T4526,Adult size pull-on med
+T4527,Adult size pull-on lg
+T4528,Adult size pull-on xl
+T4535,Disposable liner/shield/pad
+T4536,Reusable pull-on any size
+T4537,Reusable underpad bed size
+T4539,Reuse diaper/brief any size
+T4540,Reusable underpad chair size
+T4541,Large disposable underpad
+T4542,Small disposable underpad
+T4544,Adlt disp und/pull on abv xl
+T5999,"Supply, nos"
+U0002,Covid-19 lab test non-cdc
+V2020,Vision svcs frames purchases
+V2025,Eyeglasses delux frames
+V2100,Lens spher single plano 4.00
+V2103,Spherocylindr 4.00d/12-2.00d
+V2104,Spherocylindr 4.00d/2.12-4d
+V2107,Spherocylinder 4.25d/12-2d
+V2200,Lens spher bifoc plano 4.00d
+V2201,Lens sphere bifocal 4.12-7.0
+V2203,Lens sphcyl bifocal 4.00d/.1
+V2204,Lens sphcy bifocal 4.00d/2.1
+V2207,Lens sphcy bifocal 4.25-7d/.
+V2300,Lens sphere trifocal 4.00d
+V2303,Lens sphcy trifocal 4.0/.12-
+V2307,Lens sphcy trifocal 4.25-7/.
+V2430,Lens variable asphericity bi
+V2499,Variable asphericity lens
+V2520,Contact lens hydrophilic
+V2521,Cntct lens hydrophilic toric
+V2599,Contact lens/es other type
+V2632,Post chmbr intraocular lens
+V2702,Deluxe lens feature
+V2715,Prism lens/es
+V2730,Special base curve
+V2744,Tint photochromatic lens/es
+V2745,"Tint, any color/solid/grad"
+V2750,Anti-reflective coating
+V2755,Uv lens/es
+V2760,Scratch resistant coating
+V2762,"Polarization, any lens"
+V2781,Progressive lens per lens
+V2782,"Lens, 1.54-1.65 p/1.60-1.79g"
+V2783,"Lens, >= 1.66 p/>=1.80 g"
+V2784,Lens polycarb or equal
+V2787,Astigmatism-correct function
+V2788,Presbyopia-correct function
+V2797,Vis item/svc in other code
+V2799,Misc vision item or service
+V5010,Assessment for hearing aid
+V5011,Hearing aid fitting/checking
+V5014,Hearing aid repair/modifying
+V5020,Conformity evaluation
+V5160,Dispensing fee binaural
+V5241,"Dispensing fee, monaural"
+V5255,"Hearing aid, digit, mon, itc"
+V5256,"Hearing aid, digit, mon, ite"
+V5257,"Hearing aid, digit, mon, bte"
+V5260,"Hearing aid, digit, bin, ite"
+V5261,"Hearing aid, digit, bin, bte"
+V5264,Ear mold/insert
+V5298,Hearing aid noc
+V5299,Hearing service

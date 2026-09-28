@@ -14,7 +14,7 @@ This page gets you oriented in your first days. It links to four deeper document
 |---|---|
 | [BUSINESS_RULES.md](BUSINESS_RULES.md) | **What the numbers mean.** Cohort, line-of-therapy rules, source of business, claim types, persistency, deciles, patient journey, and the assumptions behind them |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | **How it is built.** Components, data flow, warehouse, stored functions, tools, the AI agent, UI, API, configuration, security |
-| [DATA_DICTIONARY.md](DATA_DICTIONARY.md) | **What each file and table contains.** Input files, cleaning, enrichment, and every warehouse table and column |
+| [DATA_DICTIONARY.md](DATA_DICTIONARY.md) | **What each file and table contains.** The input file, cleaning, reference files, and every warehouse table and column |
 | [DEVELOPER.md](DEVELOPER.md) | **How to change it.** Setup, adding a drug or an analysis, changing rules, testing, debugging |
 
 Analysts and business users can mostly read this page and BUSINESS_RULES.md. Developers should read all five.
@@ -63,16 +63,16 @@ Analysts and business users can mostly read this page and BUSINESS_RULES.md. Dev
 
 Ask the project lead (Satyam Kumar) for:
 - [ ] **GitHub access** to the private repo `SatyamSaitama/ciq-platform`.
-- [ ] **The data files** from the secure data share: `master_nsclc.csv` and `mx_nsclc.csv` (and optionally the
-      v1 `claims_master.parquet`). These are patient-level data: never email them, copy them to personal
+- [ ] **The data** from the secure data share: the claims file `master_nsclc.csv` (the only input) and,
+      optionally, `patient_age.csv`. These are patient-level data: never email them, copy them to personal
       storage, or commit them to git.
 - [ ] **AWS credentials** with Amazon Bedrock access. Your IAM identity needs `bedrock:InvokeModel` and
       `bedrock:InvokeModelWithResponseStream` on the `us.anthropic.claude-sonnet-5` inference profile, in `us-east-1`.
 
 Then set up your machine (about 10 minutes; details in [DEVELOPER.md](DEVELOPER.md)):
 1. Clone the repo.
-2. Put the data files in `Data/real_data/`.
-3. Run the setup script (it builds the warehouse in about 2 minutes, runs the tests and checks your environment):
+2. Put `master_nsclc.csv` in `Data/real_data/` (and `patient_age.csv`, if you have it, in `Data/reference/`).
+3. Run the setup script (it builds the warehouse in about 70 seconds, runs the tests and checks your environment):
    - Windows: `.\setup.ps1`
    - macOS/Linux: `./setup.sh`
 4. Start the app and open http://localhost:8000:
@@ -133,8 +133,7 @@ Then set up your machine (about 10 minutes; details in [DEVELOPER.md](DEVELOPER.
 
 - **Data:** the input is `master_nsclc.csv` (the v2 extract), built on branch `feature/master-nsclc`. It has
   not been merged to `main` yet.
-- **Rollback:** v1 (the `claims_master.parquet` build) can be restored three ways:
-  - the git tag `v1-claims-master`
-  - a warehouse backup in `Data/warehouse/backup/`
-  - `CIQ_SOURCE=claims_master`
+- **Input:** one claims file, plug and play (any file type or header style; validated before every build).
+- **Rollback:** previous warehouses are kept in `Data/warehouse/backup/`; the pre-migration code is git tag
+  `v1-claims-master`.
 - **Open decisions** awaiting business confirmation are listed in [BUSINESS_RULES.md §11](BUSINESS_RULES.md#11-assumptions-and-open-decisions).

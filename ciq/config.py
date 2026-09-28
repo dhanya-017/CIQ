@@ -8,20 +8,24 @@ WAREHOUSE_DIR = DATA_DIR / "warehouse"
 WAREHOUSE_DB = WAREHOUSE_DIR / "ciq.duckdb"
 
 # ---------------------------------------------------------------------------
-# Input source (CIQ_SOURCE)
-#   master_nsclc   (default) Data/real_data/master_nsclc.csv - 15-column claims extract, enriched at build time
-#                  with age + billing provider (raw MX extract) and code descriptions (reference files)
-#   claims_master  (legacy v1) Data/master/claims_master.parquet - 77-column long-format master
-# Roll back to v1: set CIQ_SOURCE=claims_master and rebuild, or restore Data/warehouse/backup/ciq_v1_*.duckdb.
+# Input: ONE claims file (plug and play - see ciq/build/inputs.py)
+#   CIQ_INPUT        the claims extract: .csv / .csv.gz / .tsv / .parquet, any location and header spelling.
+#                    Default Data/real_data/master_nsclc.csv. Overridden by `build_warehouse --input PATH`.
+# Reference files (separate, optional, small):
+#   CIQ_PATIENT_AGE  patient_id,age lookup, used when the claims file has no age column
+#                    (default Data/reference/patient_age.csv; patient-level, so local only)
+#   ciq/reference/   drug dictionary, ICD-10-CM and HCPCS descriptions (public, in git)
+# The pre-migration version is git tag v1-claims-master.
 # ---------------------------------------------------------------------------
-SOURCE = os.getenv("CIQ_SOURCE", "master_nsclc").strip().lower()
-MASTER_PARQUET = DATA_DIR / "master" / "claims_master.parquet"          # v1 input; also a description/age fallback
-MASTER_NSCLC_CSV = DATA_DIR / "real_data" / "master_nsclc.csv"          # v2 input
-RAW_MX_CSV = DATA_DIR / "real_data" / "mx_nsclc.csv"                   # v2 enrichment: age, billing provider
+MASTER_NSCLC_CSV = DATA_DIR / "real_data" / "master_nsclc.csv"          # default input
+INPUT_PATH = Path(os.getenv("CIQ_INPUT") or MASTER_NSCLC_CSV)
+PATIENT_AGE_CSV = Path(os.getenv("CIQ_PATIENT_AGE") or DATA_DIR / "reference" / "patient_age.csv")
+WAREHOUSE_BACKUPS_KEPT = 3                                              # automatic backups kept on each rebuild
 
 REFERENCE_DIR = Path(__file__).resolve().parent / "reference"
 DRUG_REFERENCE_CSV = REFERENCE_DIR / "drug_reference.csv"
 ICD10CM_CSV = REFERENCE_DIR / "icd10cm.csv"                              # public CMS code file (scripts/fetch_icd10cm.py)
+HCPCS_CSV = REFERENCE_DIR / "hcpcs.csv"                                  # HCPCS Level II short descriptions (public)
 SQL_DIR = Path(__file__).resolve().parent / "sql"
 
 # Default brand the tools analyse when the caller does not specify one.

@@ -18,15 +18,6 @@ sys.path.insert(0, str(ROOT))
 OK, WARN, FAIL = "\033[32mPASS\033[0m", "\033[33mWARN\033[0m", "\033[31mFAIL\033[0m"
 results: list[str] = []
 
-REQUIRED_MASTER_COLUMNS = {
-    "source_table", "claim_id", "source_line_id", "patient_id", "service_date", "claim_type", "code_type",
-    "code_position", "code", "code_system", "code_short_desc", "is_line_anchor", "ndc_cd", "ndc_desc", "prod_name",
-    "pat_age_yr_nbr", "provider_rendering_id", "provider_billing_id", "provider_id", "pri_payer_plan_id",
-    "payer_plan_id", "most_freq_rx_mop", "days_supply", "dx_unit_of_svc_amt", "quantity", "svc_bill_amt",
-    "place_of_svc_cd", "rx_claim_type", "sob",
-}
-
-
 def report(status: str, name: str, detail: str = "", fix: str = "") -> bool:
     print(f"[{status}] {name}" + (f" - {detail}" if detail else ""))
     if fix and status != OK:
@@ -48,62 +39,34 @@ def check_packages() -> bool:
                   "pip install -r requirements.txt")
 
 
-REQUIRED_NSCLC_COLUMNS = {
-    "claim_id", "patient_id", "svc_dt", "diagnosis_code", "code", "code_description", "rendering_provider_id",
-    "referring_provider_id", "plan_id", "plan_name", "days_supply", "quantity", "refill_code", "source",
-}
-
-
 def check_master() -> bool:
-    """Check the configured input (CIQ_SOURCE) and, for master_nsclc, its enrichment sources."""
+    """The one claims input file (header check only - fast) and the optional reference files."""
     from ciq import config
-    import duckdb
-    con = duckdb.connect()
-    if config.SOURCE == "master_nsclc":
-        p = config.MASTER_NSCLC_CSV
-        if not p.exists():
-            if config.WAREHOUSE_DB.exists():
-                return report(WARN, "Input master_nsclc.csv", f"{p.relative_to(ROOT)} not found - fine at runtime (the app "
-                              "reads only the warehouse); needed only to rebuild it",
-                              "copy master_nsclc.csv into Data/real_data/ if you need to rebuild the warehouse")
-            return report(FAIL, "Input master_nsclc.csv", f"{p.relative_to(ROOT)} not found",
-                          "copy master_nsclc.csv from the secure data share into Data/real_data/ (see Data/README.md), "
-                          "or set CIQ_SOURCE=claims_master to build from the v1 master")
-        cols = {r[0] for r in con.execute(f"describe select * from read_csv('{p.as_posix()}', all_varchar=true, "
-                                          "sample_size=2000)").fetchall()}
-        missing = REQUIRED_NSCLC_COLUMNS - cols
-        ok = report(FAIL if missing else OK, "Input master_nsclc.csv",
-                    f"missing columns: {sorted(missing)}" if missing else f"{len(cols)} columns ({p.stat().st_size / 1e6:,.0f} MB)",
-                    "the file doesn't match the expected 15-column layout - get the current extract")
-        # enrichment sources: not fatal, but features degrade without them
-        report(OK if config.RAW_MX_CSV.exists() else WARN, "Enrichment: raw MX extract",
-               "age + billing provider" if config.RAW_MX_CSV.exists() else f"{config.RAW_MX_CSV.name} not found: no age "
-               "(demographics, age filters) and no billing-provider fallback for HCPs",
-               "copy mx_nsclc.csv into Data/real_data/")
-        report(OK if config.ICD10CM_CSV.exists() else WARN, "Enrichment: ICD-10-CM descriptions",
-               "ciq/reference/icd10cm.csv" if config.ICD10CM_CSV.exists() else "missing: diagnosis descriptions limited",
-               "python scripts/fetch_icd10cm.py")
-        report(OK if config.MASTER_PARQUET.exists() else WARN, "Enrichment: v1 claims master (fallback)",
-               "descriptions/age fallback" if config.MASTER_PARQUET.exists() else "not found: procedure descriptions blank",
-               "optional - copy claims_master.parquet into Data/master/")
-        return ok
-    p = config.MASTER_PARQUET
-    if not p.exists() and config.WAREHOUSE_DB.exists():
-        # runtime-only install (e.g. a demo server): the app reads only the warehouse
-        return report(WARN, "Claims master", f"{p.relative_to(ROOT)} not found - fine at runtime (the app reads only "
-                      "the warehouse); needed only to rebuild it",
-                      "copy claims_master.parquet into Data/master/ if you need to rebuild the warehouse")
+    from ciq.build import inputs, validate
+    p = config.INPUT_PATH
     if not p.exists():
-        return report(FAIL, "Claims master", f"{p.relative_to(ROOT)} not found",
-                      "copy claims_master.parquet from the secure data share into Data/master/ (see Data/README.md)")
-    cols = {r[0] for r in con.execute(f"describe select * from read_parquet('{p.as_posix()}')").fetchall()}
-    missing = REQUIRED_MASTER_COLUMNS - cols
-    if missing:
-        return report(FAIL, "Claims master schema", f"missing columns: {sorted(missing)}",
-                      "the file doesn't match the expected master layout - get the current extract")
-    n, pts, d0, d1 = con.execute(f"select count(*), count(distinct patient_id), min(service_date), max(service_date) "
-                                 f"from read_parquet('{p.as_posix()}')").fetchone()
-    return report(OK, "Claims master", f"{n:,} rows, {pts:,} patients, {d0} to {d1}")
+        if config.WAREHOUSE_DB.exists():
+            return report(WARN, "Claims input", f"{p} not found - fine at runtime (the app reads only the warehouse); "
+                          "needed only to rebuild", "put the claims file in Data/real_data/ or set CIQ_INPUT")
+        return report(FAIL, "Claims input", f"{p} not found",
+                      "copy master_nsclc.csv into Data/real_data/ (see Data/README.md), or set CIQ_INPUT to your file")
+    try:
+        info = inputs.inspect(p)
+    except ValueError as e:
+        return report(FAIL, "Claims input", str(e), "use a .csv, .csv.gz, .tsv or .parquet file")
+    r = validate.check_header(info)
+    ok = report(OK if r.ok else FAIL, "Claims input", f"{p.name} ({p.stat().st_size / 1e6:,.0f} MB, layout {info.layout})"
+                if r.ok else "; ".join(r.errors), "fix the file's columns - see docs/DATA_DICTIONARY.md")
+    for f, what in ((config.DRUG_REFERENCE_CSV, "drug dictionary"), (config.ICD10CM_CSV, "diagnosis descriptions"),
+                    (config.HCPCS_CSV, "HCPCS descriptions")):
+        report(OK if f.exists() else WARN, f"Reference: {f.name}", what if f.exists() else f"missing ({what})",
+               "restore it from git (icd10cm.csv: python scripts/fetch_icd10cm.py)")
+    has_age_col = "age" in info.mapping
+    report(OK if (has_age_col or config.PATIENT_AGE_CSV.exists()) else WARN, "Reference: patient age",
+           "age column in the claims file" if has_age_col else (config.PATIENT_AGE_CSV.name if config.PATIENT_AGE_CSV.exists()
+           else "not available: age-based analyses will be empty"),
+           "put patient_age.csv (patient_id,age) in Data/reference/ - optional")
+    return ok
 
 
 def check_warehouse() -> None:
@@ -151,7 +114,7 @@ def check_bedrock() -> None:
 def main() -> None:
     skip_bedrock = "--skip-bedrock" in sys.argv
     from ciq import config
-    print(f"CIQ environment check ({ROOT}) - source: {config.SOURCE}\n")
+    print(f"CIQ environment check ({ROOT}) - input: {config.INPUT_PATH}\n")
     check_python()
     if check_packages():
         check_master()

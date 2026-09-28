@@ -63,22 +63,24 @@ Analysts and business users can mostly read this page and BUSINESS_RULES.md. Dev
 
 Ask the project lead (Satyam Kumar) for:
 - [ ] **GitHub access** to the private repo `SatyamSaitama/ciq-platform`.
-- [ ] **The data** from the secure data share: the claims file `master_nsclc.csv` (the only input) and,
-      optionally, `patient_age.csv`. These are patient-level data: never email them, copy them to personal
-      storage, or commit them to git.
+- [ ] **The data** from the secure data share: the claims file `master_nsclc.csv`, the only data file you need
+      (the reference files come with the repo). It is patient-level data: never email it,
+      copy it to personal storage, or commit it to git.
 - [ ] **AWS credentials** with Amazon Bedrock access. Your IAM identity needs `bedrock:InvokeModel` and
       `bedrock:InvokeModelWithResponseStream` on the `us.anthropic.claude-sonnet-5` inference profile, in `us-east-1`.
 
 Then set up your machine (about 10 minutes; details in [DEVELOPER.md](DEVELOPER.md)):
 1. Clone the repo.
-2. Put `master_nsclc.csv` in `Data/real_data/` (and `patient_age.csv`, if you have it, in `Data/reference/`).
-3. Run the setup script (it builds the warehouse in about 70 seconds, runs the tests and checks your environment):
-   - Windows: `.\setup.ps1`
-   - macOS/Linux: `./setup.sh`
-4. Start the app and open http://localhost:8000:
+2. Put `master_nsclc.csv` in `Data/real_data/`. It's the only file you receive; `.env` is created for you.
+3. Start the app and open http://localhost:8000:
    - Windows: `.\run.ps1`
    - macOS/Linux: `./run.sh`
-5. If anything fails: `python scripts/doctor.py`. It checks every prerequisite and prints the fix.
+
+   The first run creates `.venv`, installs packages, creates `.env` from `.env.example` and builds the
+   warehouse (about 70 seconds). Later runs start straight away unless something changed.
+4. If anything fails: `python scripts/doctor.py`. It checks every prerequisite and prints the fix.
+
+Developers can run `.\setup.ps1` / `./setup.sh` instead of step 3: the same setup plus the test suite.
 
 ## 4. Your first week
 

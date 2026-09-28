@@ -62,10 +62,11 @@ def check_master() -> bool:
         report(OK if f.exists() else WARN, f"Reference: {f.name}", what if f.exists() else f"missing ({what})",
                "restore it from git (icd10cm.csv: python scripts/fetch_icd10cm.py)")
     has_age_col = "age" in info.mapping
-    report(OK if (has_age_col or config.PATIENT_AGE_CSV.exists()) else WARN, "Reference: patient age",
-           "age column in the claims file" if has_age_col else (config.PATIENT_AGE_CSV.name if config.PATIENT_AGE_CSV.exists()
-           else "not available: age-based analyses will be empty"),
-           "put patient_age.csv (patient_id,age) in Data/reference/ - optional")
+    age_file = config.PATIENT_AGE_CSV
+    report(OK if (has_age_col or (age_file and age_file.exists())) else WARN, "Patient age",
+           "age column in the claims file" if has_age_col else (age_file.name if age_file and age_file.exists()
+           else "no age column: age-based analyses will be empty"),
+           "add an age column to the claims file (or set CIQ_PATIENT_AGE to a patient_id,age file)")
     return ok
 
 

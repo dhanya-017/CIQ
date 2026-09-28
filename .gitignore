@@ -3,11 +3,9 @@
 Data/*
 !Data/README.md
 !Data/real_data/
-!Data/reference/
 !Data/warehouse/
 !Data/conversations/
 Data/real_data/*
-Data/reference/*
 Data/warehouse/*
 Data/conversations/*
 !Data/*/.gitkeep

@@ -34,7 +34,7 @@ ALIASES: dict[str, list[str]] = {
     "quantity": ["quantity", "qty", "units", "dx_unit_of_svc_amt"],
     "refill_code": ["refill_code", "refill_number", "refill_nbr", "fill_number"],
     "source": ["source", "record_source", "source_type", "claim_source"],
-    "age": ["age", "pat_age_yr_nbr", "patient_age", "age_years"],          # optional: else Data/reference/patient_age.csv
+    "age": ["age", "pat_age_yr_nbr", "patient_age", "age_years"],          # optional (else CIQ_PATIENT_AGE)
 }
 REQUIRED = ["patient_id", "svc_dt", "source", "diagnosis_code", "code"]
 OPTIONAL = [c for c in ALIASES if c not in REQUIRED]

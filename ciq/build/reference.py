@@ -2,8 +2,8 @@
 
     ref_icd10cm      diagnosis descriptions   ciq/reference/icd10cm.csv (public CMS; scripts/fetch_icd10cm.py)
     ref_hcpcs        HCPCS Level II descriptions  ciq/reference/hcpcs.csv (public)
-    ref_patient_age  age per patient          the claims file's own age column if it has one, otherwise
-                                              Data/reference/patient_age.csv (patient_id,age; local, patient-level)
+    ref_patient_age  age per patient          the claims file's `age` column; if a file has none, an optional
+                                              separate patient_id,age file named by CIQ_PATIENT_AGE
 
 A missing file gives an empty table (and a warning), never a failed build. The drug dictionary is loaded in
 step 4 (drugs.py) because it maps the staged claim lines.
@@ -39,7 +39,7 @@ def run(ctx) -> None:
     has_input_age = con.execute("select count(age) from src_master_nsclc").fetchone()[0] > 0
     age_file = config.PATIENT_AGE_CSV
     file_sel = "select null::varchar as patient_id, null::integer as age where false"
-    if age_file.exists():
+    if age_file is not None and age_file.exists():
         info = inputs.inspect(age_file, con)
         cols = {inputs._norm(h): h for h in info.headers}
         pid = cols.get("patient_id")
@@ -51,13 +51,14 @@ def run(ctx) -> None:
         else:
             log(f"  WARNING {age_file.name} needs columns patient_id and age - ignored")
     elif not has_input_age:
-        log(f"  WARNING no age in the claims file and no {age_file.name}: age-based analyses will be unavailable")
+        log("  WARNING the claims file has no age column (and no CIQ_PATIENT_AGE file): age-based analyses will be "
+            "unavailable")
     con.execute(f"""
         create table ref_patient_age as
         with f as ({file_sel}),
              i as (select patient_id, max(age) as age from src_master_nsclc group by 1)
         select p.patient_id, coalesce(i.age, f.age) as age,
-               case when i.age is not null then 'claims file' when f.age is not null then '{age_file.name}' end as age_source
+               case when i.age is not null then 'claims file' when f.age is not null then 'CIQ_PATIENT_AGE file' end as age_source
         from (select distinct patient_id from src_master_nsclc) p
         left join i using (patient_id) left join f using (patient_id)
     """)

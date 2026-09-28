@@ -162,7 +162,7 @@ def _swap_in(tmp: Path) -> None:
 
 def build_fingerprint() -> str:
     """Everything whose change should trigger a rebuild: input, reference files, rules, build code."""
-    files = inputs.fingerprint([config.INPUT_PATH, config.PATIENT_AGE_CSV, config.DRUG_REFERENCE_CSV,
+    files = inputs.fingerprint([config.INPUT_PATH, config.PATIENT_AGE_CSV or "", config.DRUG_REFERENCE_CSV,
                                 config.ICD10CM_CSV, config.HCPCS_CSV])
     rules = repr((config.COHORT_DX_LIKE, config.LOT_REGIMEN_WINDOW_DAYS, config.LOT_REGIMEN_WINDOW_CYCLES,
                   config.LOT_GAP_DAYS, config.LOT_THERAPY_GROUPS, sorted(map(sorted, config.LOT_EQUIVALENT_MOLECULES)),

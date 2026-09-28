@@ -10,7 +10,7 @@ This guide takes you from cloning the repo to shipping a change. New to the proj
 - Python 3.10+ (3.12 recommended)
 - Git
 - AWS credentials with Bedrock access to Claude, i.e. `bedrock:InvokeModel*` on the `us.anthropic.claude-sonnet-5` inference profile, region `us-east-1`
-- The claims file `master_nsclc.csv` (and optionally `patient_age.csv`): request access from the data owner (see [Data/README.md](../Data/README.md))
+- The claims file `master_nsclc.csv`, the only data file (request access from the data owner; see [Data/README.md](../Data/README.md))
 
 **Steps:**
 1. Clone:
@@ -18,17 +18,19 @@ This guide takes you from cloning the repo to shipping a change. New to the proj
    git clone https://github.com/SatyamSaitama/ciq-platform.git
    cd ciq-platform
    ```
-2. Copy `master_nsclc.csv` into `Data/real_data/` (optionally `patient_age.csv` into `Data/reference/`).
+2. Copy `master_nsclc.csv` into `Data/real_data/` (the only data file; nobody needs to send you `.env`).
 3. Run the setup script:
    - Windows: `.\setup.ps1`
    - macOS/Linux: `./setup.sh`
 
-   It creates `.venv`, installs packages, creates `.env`, builds the warehouse, runs the tests and runs `scripts/doctor.py`.
+   It creates `.venv`, installs packages, creates `.env` from `.env.example`, builds the warehouse, runs the tests
+   and runs `scripts/doctor.py`. (`run.ps1` / `run.sh` alone also do the first-time setup, without the tests.)
 4. Start the app:
    - Windows: `.\run.ps1 -Reload`
    - macOS/Linux: `./run.sh --reload`
 
-   Then open http://localhost:8000.
+   Then open http://localhost:8000. `run.ps1` / `run.sh` re-install packages when `requirements.txt` changes
+   and rebuild the warehouse only when the claims file, reference files, rules or build code change.
 
 **If something fails,** run `python scripts/doctor.py`. It checks each prerequisite and prints the fix.
 Use `--skip-bedrock` to skip the (tiny, paid) model call.
@@ -40,7 +42,7 @@ Data/real_data/master_nsclc.csv  (the ONE input: any .csv/.csv.gz/.tsv/.parquet,
         │  python -m ciq.build.build_warehouse   (~70 s; run.ps1 / run.sh rebuild automatically when it changes)
         │  ciq/build/pipeline.py runs the steps in order, each a small module with run(ctx):
         │    1 load  2 reference  3 staging  4 drugs  5 facts  6 dimensions  7 lot  8 io_cohort  9 install_procedures
-        │  reference files: ciq/reference/ (drugs, ICD-10-CM, HCPCS) + optional Data/reference/patient_age.csv
+        │  reference files (in git): ciq/reference/ - drug dictionary, ICD-10-CM, HCPCS
         ▼
 Data/warehouse/ciq.duckdb
   ref_drug, ref_drug_code_map     curated drug dictionary + code→molecule map

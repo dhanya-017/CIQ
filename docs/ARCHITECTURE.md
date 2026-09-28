@@ -33,7 +33,6 @@ how-to tasks see [DEVELOPER.md](DEVELOPER.md).
 ```
  Data/real_data/master_nsclc.csv     the ONE input (plug and play: any file type / header style)
  ciq/reference/*.csv                 drug dictionary, ICD-10-CM + HCPCS descriptions (public, in git)
- Data/reference/patient_age.csv      optional age lookup (local)
             │
             │  BUILD  python -m ciq.build.build_warehouse   (~70 s; auto-rebuild on change via run.ps1 / run.sh)
             │    ciq/build/pipeline.py  runs 9 step modules in order (load → … → install_procedures)
@@ -59,7 +58,7 @@ DuckDB connection, the input file's details, a logger and counts to record. Comm
 | # | Module | Does | Writes |
 |---|---|---|---|
 | 1 | `load.py` (+ `inputs.py`, `validate.py`) | Read the ONE claims file (any type / header spelling), validate it (stops on errors), clean it | `src_master_nsclc` |
-| 2 | `reference.py` | Load the separate lookup files; age from the claims file's own column, else `patient_age.csv` | `ref_icd10cm`, `ref_hcpcs`, `ref_patient_age` |
+| 2 | `reference.py` | Load the description lookups; age from the claims file's `age` column (or an optional `CIQ_PATIENT_AGE` file) | `ref_icd10cm`, `ref_hcpcs`, `ref_patient_age` |
 | 3 | `staging.py` | Keep the `%C34%` cohort; rebuild claim lines (the input repeats each line per diagnosis slot); join descriptions and age | `stg_claims` (temporary, long layout: DX rows + one PX/RX anchor row per line) |
 | 4 | `drugs.py` | Map every drug line to molecule / product / class / therapy group with `drug_reference.csv` | `ref_drug`, `ref_drug_code_map` |
 | 5 | `facts.py` | Event tables at a fixed grain | `fact_drug_event`, `fact_dx_event`, `fact_px_event` |
@@ -220,7 +219,7 @@ NaN/inf into null (they aren't valid JSON). Use it for any new endpoint that ret
 | Variable | Default | Meaning |
 |---|---|---|
 | `CIQ_INPUT` | `Data/real_data/master_nsclc.csv` | The one claims input file (any location / supported type) |
-| `CIQ_PATIENT_AGE` | `Data/reference/patient_age.csv` | Optional age lookup (used if the claims file has no age column) |
+| `CIQ_PATIENT_AGE` | unset | Optional separate `patient_id,age` file, only for a claims file without an `age` column |
 | `AWS_PROFILE`, `AWS_REGION` | default chain, `us-east-1` | AWS credentials for Bedrock |
 | `CIQ_MODEL`, `CIQ_MODEL_LABEL` | `us.anthropic.claude-sonnet-5`, `Claude Sonnet 5` | Bedrock inference profile and its display name |
 | `CIQ_EFFORT` | `high` | Model effort: `low` … `max` |
@@ -244,7 +243,7 @@ rebuilding and re-testing.
 | `app/` | `server.py`, `agent.py`, `store.py`, `settings.py`, `static/` |
 | `scripts/` | `doctor.py` (environment check), `fetch_icd10cm.py`, `tool_gallery.py` |
 | `tests/` | Tools, line-of-therapy rules, IO business rules, compare, charts, journey |
-| `Data/` | Local data only (git-ignored except README/.gitkeep): `real_data/` (the input), `reference/`, `warehouse/`, `conversations/`, `cohorts/` |
+| `Data/` | Local data only (git-ignored except README/.gitkeep): `real_data/` (the input), `warehouse/`, `conversations/`, `cohorts/` |
 | `setup.ps1` / `setup.sh`, `run.ps1` / `run.sh` | One-command setup and start |
 
 ## 12. Security and data handling

@@ -23,7 +23,7 @@ Contents:
 
 ## 1. Data and patient cohort
 
-**Input:** ONE claims file, `Data/real_data/master_nsclc.csv`: a 15-column extract (5,778,852 rows, 9,993 patients,
+**Input:** ONE claims file, `Data/real_data/master_nsclc.csv`: a 16-column extract (5,778,852 rows, 9,993 patients,
 2026-01-01 to 2026-07-31). Each row is one claim line and diagnosis slot, from one of three sources:
 
 | `source` | Meaning | `code` holds |
@@ -43,7 +43,7 @@ Contents:
 
 | Field | Source | Coverage |
 |---|---|---|
-| Age | The claims file's own age column if present, else `Data/reference/patient_age.csv` | 86% of patients |
+| Age | The claims file's `age` column (added from the raw medical extract, one value per patient) | 86% of patients |
 | Diagnosis descriptions | CMS ICD-10-CM FY2027 code file (`ciq/reference/icd10cm.csv`) | 99.96% of diagnosis events |
 | Procedure descriptions | HCPCS Level II (`ciq/reference/hcpcs.csv`); CPT text is AMA-licensed, so none | HCPCS only; not used by any analysis |
 | Gender | not available in any source | — |

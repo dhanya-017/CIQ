@@ -10,7 +10,8 @@ All input files are **patient-level and local only** (`Data/`, git-ignored). The
 
 ### `Data/real_data/master_nsclc.csv` (required, the build input)
 
-5,778,852 rows × 15 columns, produced upstream by `NSCLC_Master_Data.ipynb` from the raw MX and RX extracts. The
+5,778,852 rows × 16 columns, produced upstream by `NSCLC_Master_Data.ipynb` from the raw MX and RX extracts (the `age`
+column was added afterwards from the raw medical extract). The
 file has quirks from that process; the build cleans them all (see "Cleaning").
 
 | Column | Meaning | Quirks in the file |
@@ -30,13 +31,7 @@ file has quirks from that process; the build cleans them all (see "Cleaning").
 | `quantity` | Pharmacy quantity / medical units of service | `5.0` |
 | `refill_code` | Pharmacy refill number (0 = new prescription) | `0.0` |
 | `source` | `RX` pharmacy, `MX_RX` medical line with NDC, `MX_PX` medical procedure | — |
-
-### `Data/reference/patient_age.csv` (optional, local)
-
-- Two columns: `patient_id`, `age` (header spellings like `pat_age_yr_nbr` also work).
-- Used only when the claims file has no age column.
-- Patient-level, so never committed.
-- Currently 9,660 patients, extracted once from the raw medical extract.
+| `age` | Patient age in years (same value on every row of a patient); blank for 1,379 patients with no recorded age | — |
 
 ### `ciq/reference/drug_reference.csv` (in git)
 
@@ -84,7 +79,7 @@ it with `python scripts/fetch_icd10cm.py [year]`.
 | `ref_drug_code_map` | 688 | Every drug signature seen in the claims → `molecule`, `product`, `drug_class`, `therapy_group`, `default_days_supply`, `match_type` (`HCPCS` / `NAME` / `J9_FALLBACK`). Keys: `code_system`, `code`, `prod_name`, `ndc_desc` |
 | `ref_icd10cm` | 98,403 | `code`, `is_billable`, `short_desc` |
 | `ref_hcpcs` | 1,818 | `code`, `short_desc` |
-| `ref_patient_age` | 9,993 | `patient_id`, `age`, `age_source` (`claims file` or `patient_age.csv`) |
+| `ref_patient_age` | 9,993 | `patient_id`, `age`, `age_source` (`claims file`, or `CIQ_PATIENT_AGE file` if one is used) |
 | `ref_data_coverage` | 1 | `data_start`, `data_end`, `n_patients`, `n_source_rows`, `built_at` |
 | `ref_build_params` | 14 | `param`, `value`: the rules and source used by this build (gap days, regimen window, therapy groups, cohort pattern, washout, source file, row counts) |
 

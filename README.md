@@ -32,10 +32,14 @@ ciq/tools/registry.py   ── Claude tool-use schemas + run_tool() dispatcher
 ## Getting started (new developers)
 
 1. Clone the repo.
-2. Put the claims file `master_nsclc.csv` in `Data/real_data/` (and optionally `patient_age.csv` in `Data/reference/`; see [Data/README.md](Data/README.md)).
-3. Run `.\setup.ps1` (Windows) or `./setup.sh` (macOS/Linux).
-4. Start the app with `.\run.ps1` or `./run.sh`.
-5. If anything fails, run `python scripts/doctor.py` for a step-by-step check with fixes.
+2. Put the claims file `master_nsclc.csv` in `Data/real_data/`. It's the **only file anyone shares with you**
+   (see [Data/README.md](Data/README.md)).
+3. Run `.\run.ps1` (Windows) or `./run.sh` (macOS/Linux), then open http://localhost:8000. The first run creates
+   `.venv`, installs packages and creates `.env` from `.env.example` (the defaults work), then builds the warehouse.
+4. If anything fails, run `python scripts/doctor.py` for a step-by-step check with fixes.
+
+You also need your own AWS login with Bedrock access (`aws configure` or SSO); it is not a file to share.
+`.\setup.ps1` / `./setup.sh` do the same first-run steps and also run the tests (optional, for developers).
 
 The full walkthrough is in [docs/DEVELOPER.md](docs/DEVELOPER.md): architecture, how a request flows through
 the system, and how to add a drug, add an analysis, change business rules, or debug.
@@ -65,7 +69,7 @@ DuckDB rule: any argument that has a default must be passed by name (`p_x := ...
 ## Web app (backend and UI in one server)
 
 ```powershell
-.\run.ps1            # builds the warehouse if it is missing, then serves http://localhost:8000
+.\run.ps1            # first run: .venv + packages + .env; rebuilds only if inputs changed; serves http://localhost:8000
 ```
 
 - **Backend** (`app/`): a FastAPI server that also serves the static UI.
@@ -127,12 +131,12 @@ case-insensitive. The default is `KEYTRUDA`, the largest brand in this NSCLC dat
 - **Events** are deduplicated to one row per patient, day and molecule. Only paid pharmacy claims are kept.
   Infused drugs are given a standard cycle length as their days supply (`default_days_supply`).
 - **Input and cohort** (`ciq/build/load.py`, `staging.py`; plug and play via `inputs.py`, `validate.py`):
-  - ONE input file, default `Data/real_data/master_nsclc.csv` (15 columns; any file type/header style, see
+  - ONE input file, default `Data/real_data/master_nsclc.csv` (16 columns incl. `age`; any file type/header style, see
     `Data/README.md`), validated, then loaded completely into `src_master_nsclc`
     (IDs cleaned of `.0`, NDCs padded to 11 digits, the `renderring_provider_id` typo column merged).
   - Separate reference files fill what the claims file lacks: **diagnosis descriptions** (CMS ICD-10-CM,
-    `ciq/reference/icd10cm.csv`), **HCPCS descriptions** (`ciq/reference/hcpcs.csv`) and **age**
-    (`Data/reference/patient_age.csv`, unless the claims file has an age column).
+    `ciq/reference/icd10cm.csv`) and **HCPCS descriptions** (`ciq/reference/hcpcs.csv`). Age comes from the
+    claims file's own `age` column.
   - **Cohort:** only patients with a diagnosis `LIKE '%C34%'` are kept.
 - **Lines of therapy** (`ciq/build/lot.py`), built from **all anticancer drugs** (pharmacy NDCs and J-code
   drugs billed as procedures; supportive care excluded):

@@ -11,15 +11,15 @@ WAREHOUSE_DB = WAREHOUSE_DIR / "ciq.duckdb"
 # Input: ONE claims file (plug and play - see ciq/build/inputs.py)
 #   CIQ_INPUT        the claims extract: .csv / .csv.gz / .tsv / .parquet, any location and header spelling.
 #                    Default Data/real_data/master_nsclc.csv. Overridden by `build_warehouse --input PATH`.
-# Reference files (separate, optional, small):
-#   CIQ_PATIENT_AGE  patient_id,age lookup, used when the claims file has no age column
-#                    (default Data/reference/patient_age.csv; patient-level, so local only)
-#   ciq/reference/   drug dictionary, ICD-10-CM and HCPCS descriptions (public, in git)
+#   The claims file carries everything the build needs, including an `age` column.
+# Reference files (small, public, in git under ciq/reference/): drug dictionary, ICD-10-CM and HCPCS descriptions.
+# So a new user needs only the claims file; the build reads it and never modifies it.
+#   CIQ_PATIENT_AGE  optional: a separate patient_id,age file, used only if a claims file has no age column
 # The pre-migration version is git tag v1-claims-master.
 # ---------------------------------------------------------------------------
 MASTER_NSCLC_CSV = DATA_DIR / "real_data" / "master_nsclc.csv"          # default input
 INPUT_PATH = Path(os.getenv("CIQ_INPUT") or MASTER_NSCLC_CSV)
-PATIENT_AGE_CSV = Path(os.getenv("CIQ_PATIENT_AGE") or DATA_DIR / "reference" / "patient_age.csv")
+PATIENT_AGE_CSV = Path(os.environ["CIQ_PATIENT_AGE"]) if os.getenv("CIQ_PATIENT_AGE") else None
 WAREHOUSE_BACKUPS_KEPT = 3                                              # automatic backups kept on each rebuild
 
 REFERENCE_DIR = Path(__file__).resolve().parent / "reference"

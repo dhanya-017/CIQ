@@ -149,7 +149,8 @@ def _month_range(spec: str) -> tuple[str, date, date]:
 # ---------------------------------------------------------------------------- scorecard helpers
 def _row(section, metric, a, b, kind="int", higher_is_better=True):
     """kind: pct (a share; diff in pp) | pp (a change in share) | int | num | days"""
-    if a is None or b is None or (isinstance(a, float) and np.isnan(a)) or (isinstance(b, float) and np.isnan(b)):
+    a, b = (None if v is None or pd.isna(v) else v for v in (a, b))   # NaN / pd.NA -> missing
+    if a is None or b is None:
         diff, dfmt = None, "—"
     elif kind in ("pct", "pp"):
         diff = (b - a) * 100
@@ -353,6 +354,9 @@ def _segment(kind: str, spec: str, product: str) -> dict:
         if spec not in PATIENT_COHORTS:
             raise ValueError(f"unknown patient cohort '{spec}'. Options: {list(PATIENT_COHORTS)}")
         label, cond = PATIENT_COHORTS[spec]
+        if spec.startswith("age_") and not query("select count(age) from dim_patient").iloc[0, 0]:
+            raise ValueError(f"'{label}' needs patient age, which is not available in this data "
+                             "(age comes from mx_nsclc.csv). Choose a cohort not based on age.")
         return {"label": label, "definition": cond,
                 "pred": f"patient_id in (select patient_id from dim_patient where {cond})", "params": {}, "months": None}
     if kind == "time":

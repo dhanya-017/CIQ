@@ -12,7 +12,7 @@ import pandas as pd
 
 from ciq import config
 from ciq.tools import charts, customize
-from ciq.tools.base import ToolResult, call_fn, coverage, kpi, pct, query, resolve_product
+from ciq.tools.base import ToolResult, call_fn, coverage, kpi, num, pct, query, resolve_product
 
 LINE_BUCKET_NOTE = (f"Lines of therapy follow the oncology LOT rules: the first {config.LOT_REGIMEN_WINDOW_DAYS} days "
                     f"and {config.LOT_REGIMEN_WINDOW_CYCLES} cycles define the regimen; a new drug after that, or a "
@@ -145,10 +145,16 @@ def patient_demographics(product: str | None = None) -> ToolResult:
     known = ages[ages["age_group"] != "Unknown"]
     peak = known.sort_values("patients", ascending=False).iloc[0] if len(known) else None
     pay = coh.groupby("payment_type", as_index=False).size().rename(columns={"size": "patients"})
-    ins = [f"{len(coh):,} {product} patients; mean age {coh['age'].mean():.1f}, median {coh['age'].median():.0f}."]
+    known_age = coh["age"].dropna()
+    if len(known_age):
+        cover = "" if len(known_age) == len(coh) else f" ({pct(len(known_age) / len(coh))} have a recorded age)"
+        ins = [f"{len(coh):,} {product} patients; mean age {known_age.mean():.1f}, median {known_age.median():.0f}{cover}."]
+    else:
+        ins = [f"{len(coh):,} {product} patients; age is not available in the source data."]
     if peak is not None:
         ins.append(f"Peak age group {peak['age_group']} ({pct(peak['pct_patients'])} of patients).")
-    ins.append(f"{pct((coh['age'] >= 65).mean())} are 65+.")
+    if len(known_age):
+        ins.append(f"{pct((known_age >= 65).mean())} of patients with a recorded age are 65+.")
     return ToolResult(
         tool="patient_demographics", title=f"{product} patient demographics", params={"product": product},
         data={"age_distribution": ages, "payment_type": pay.sort_values("patients", ascending=False)},
@@ -588,8 +594,9 @@ def compare_products(products: list[str] | None = None, grace_days: int = 60) ->
         put("Market", f"Share in latest month ({tr['period'].iloc[-1]})", p, float(tr["patient_share"].iloc[-1]), f_pct, "higher")
         put("Market", "Administrations / fills", p, int(tr["product_events"].sum()), f_int, "higher")
 
-        put("Patients", "Median age", p, float(coh["age"].median()), f_num)
-        put("Patients", "Aged 65+", p, float((coh["age"] >= 65).mean()), f_pct)
+        known_age = coh["age"].dropna()   # age can be missing (all of it, if mx_nsclc.csv was not available)
+        put("Patients", "Median age", p, num(known_age.median()) if len(known_age) else None, f_num)
+        put("Patients", "Aged 65+", p, num((known_age >= 65).mean()) if len(known_age) else None, f_pct)
         ag = call_fn("fn_age_distribution", p).assign(product=p)
         ages.append(ag[ag["age_group"] != "Unknown"])
 

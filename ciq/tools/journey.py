@@ -244,6 +244,9 @@ def _select(df: pd.DataFrame, spec: str) -> tuple[pd.DataFrame, str]:
     if kind == "payer":
         return df[df["payer_group"] == val], val
     if kind == "age":
+        if not df["age"].notna().any():
+            raise ValueError("Age segments need patient age, which is not available in this data "
+                             "(age comes from mx_nsclc.csv). Choose a segment not based on age.")
         return (df[df["age"] < 65], "Under 65") if val == "lt65" else (df[df["age"] >= 65], "65+")
     if kind == "biomarker":
         has = df["d_biomarker"].notna()
@@ -422,7 +425,7 @@ def transition(a: str, b: str, product: str | None = None, scope: str = "market"
         x["pct"] = x["patients"] / max(len(reached), 1)
 
     def profile(s: pd.DataFrame) -> dict:
-        return {"patients": len(s), "mean_age": _med(s["age"]), "pct_65plus": float((s["age"] >= 65).mean()) if len(s) else None,
+        return {"patients": len(s), "mean_age": _med(s["age"]), "pct_65plus": float((s["age"].dropna() >= 65).mean()) if s["age"].notna().any() else None,
                 "medicare": float((s["payer_group"] == "Medicare").mean()) if len(s) else None,
                 "commercial": float((s["payer_group"] == "Commercial").mean()) if len(s) else None,
                 "medicaid": float((s["payer_group"] == "Medicaid").mean()) if len(s) else None,

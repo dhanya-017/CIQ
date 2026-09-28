@@ -77,6 +77,11 @@ def resolve_product(product: str | None) -> str:
                      f"Use list_products to see all available products.")
 
 
+def num(x) -> float | None:
+    """float(x), or None for a missing value (None, NaN, pd.NA) - e.g. a median of an all-missing column."""
+    return None if x is None or pd.isna(x) else float(x)
+
+
 def pct(x: float, digits: int = 1) -> str:
     return f"{x * 100:.{digits}f}%"
 

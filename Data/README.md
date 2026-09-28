@@ -18,3 +18,14 @@ placeholders is committed to git**. Each user supplies the data locally.
 3. Run `python scripts/doctor.py` to check it, then `python -m ciq.build.build_warehouse` (about 2 minutes).
 
 `scripts/doctor.py` checks the input file for the columns the build needs, and whether the enrichment files are present.
+
+### What if someone only has `master_nsclc.csv`?
+
+The build works (tested) and every analysis runs, with two differences:
+- **No age.** Demographics say age is not available, age rows in comparisons show "—", and age-based cohorts or
+  segments return a clear message instead of a result.
+- **No billing-provider fallback** for HCP attribution. On the current data this made no difference (94.7% of drug
+  events are attributed either way).
+
+Everything else (lines of therapy, IO source of business, TRx/NRx/NBRx, journey, deciles, diagnoses with
+descriptions) is identical. Share `mx_nsclc.csv` too if age matters.

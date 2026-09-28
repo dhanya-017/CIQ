@@ -1,7 +1,8 @@
 # CIQ developer guide
 
-This guide takes you from cloning the repo to shipping a change. Skim the architecture section first; the rest is
-reference for common tasks.
+This guide takes you from cloning the repo to shipping a change. New to the project? Start with
+[ONBOARDING.md](ONBOARDING.md); the system design is in [ARCHITECTURE.md](ARCHITECTURE.md), definitions in
+[BUSINESS_RULES.md](BUSINESS_RULES.md) and tables in [DATA_DICTIONARY.md](DATA_DICTIONARY.md).
 
 ## 1. Setup (about 10 minutes)
 
@@ -9,7 +10,7 @@ reference for common tasks.
 - Python 3.10+ (3.12 recommended)
 - Git
 - AWS credentials with Bedrock access to Claude, i.e. `bedrock:InvokeModel*` on the `us.anthropic.claude-sonnet-5` inference profile, region `us-east-1`
-- The claims master file: request access from the data owner (see [Data/README.md](../Data/README.md))
+- The data files `master_nsclc.csv` and `mx_nsclc.csv`: request access from the data owner (see [Data/README.md](../Data/README.md))
 
 **Steps:**
 1. Clone:
@@ -70,16 +71,7 @@ app/static/               no-build UI (index.html, app.js, styles.css) rendering
 
 ## 3. Repo layout
 
-| Path | What lives there |
-|---|---|
-| `ciq/config.py` | Data paths, default product, indication, line-of-therapy business rules |
-| `ciq/reference/drug_reference.csv` | Drug dictionary: molecule, product, class, therapy group, days supply, HCPCS codes, name regex |
-| `ciq/build/` | Warehouse build, line-of-therapy algorithm, reinstall the stored functions only |
-| `ciq/sql/procedures.sql` | All `fn_*` table macros |
-| `ciq/tools/` | `base.py` (DB access, ToolResult), `charts.py` (Vega-Lite builders), `analytics.py` (tools), `registry.py` |
-| `app/` | `settings.py` (env/.env), `agent.py`, `server.py`, `store.py`, `static/` |
-| `scripts/` | `doctor.py` (environment check), `tool_gallery.py` (render every tool to `docs/tool_gallery.html`) |
-| `tests/` | Tool smoke tests (run against the real warehouse) |
+See [ARCHITECTURE.md §11](ARCHITECTURE.md#11-repository-layout).
 
 ## 4. Common tasks
 
@@ -106,7 +98,12 @@ app/static/               no-build UI (index.html, app.js, styles.css) rendering
 4. **Test it:** add a case to `tests/test_tools.py`, run `pytest`, then `python scripts/tool_gallery.py` to review the charts.
 
 ### Change business rules
-- **Line-of-therapy window, gap and equivalent swaps:** `ciq/config.py`, then rebuild.
+Business rules are agreed definitions. Change the code, the matching tests and [BUSINESS_RULES.md](BUSINESS_RULES.md)
+in the same PR.
+- **Cohort** (`COHORT_DX_LIKE`), **line-of-therapy** window / gap / therapy groups / equivalent swaps, **IO brands**
+  and SC codes, **SOB washout:** `ciq/config.py`, then rebuild.
+- **SOB and claim-type logic** for the IO brands: `ciq/build/io_cohort.py`, then rebuild.
+- **Input format changes:** `ciq/build/sources.py` (the adapter). Everything downstream reads `stg_claims`.
 - **Source-of-business, persistency and decile defaults:** tool parameters. Change the defaults in `procedures.sql`
   and `analytics.py` together.
 
@@ -124,7 +121,8 @@ app/static/               no-build UI (index.html, app.js, styles.css) rendering
 
 ## 5. Testing and debugging
 
-- **Tests:** `python -m pytest tests -q`. Every tool runs against the real warehouse and must serialize to JSON.
+- **Tests:** `python -m pytest tests -q`. Every tool runs against the real warehouse and must serialize to JSON;
+  `test_lot_rules.py` specifies the line-of-therapy rules and `test_business_rules.py` the IO cohort.
 - **Try a tool without the LLM:**
   `python -c "from ciq.tools import run_tool; print(run_tool('payer_mix', {'product': 'OPDIVO'}).to_llm_text())"`
 - **Ad-hoc SQL:** use `duckdb Data/warehouse/ciq.duckdb`, or the `run_sql` tool.

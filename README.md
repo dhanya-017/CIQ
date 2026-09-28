@@ -20,6 +20,16 @@ ciq/tools/analytics.py  ── one Python tool per question (calls fn_*, adds ch
 ciq/tools/registry.py   ── Claude tool-use schemas + run_tool() dispatcher
 ```
 
+## Documentation
+
+| Document | For |
+|---|---|
+| [docs/ONBOARDING.md](docs/ONBOARDING.md) | **Start here:** the product, screens, first-week plan, glossary, ground rules |
+| [docs/BUSINESS_RULES.md](docs/BUSINESS_RULES.md) | How every number is defined: cohort, lines of therapy, SOB, TRx/NRx/NBRx, journey |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Tech stack, build pipeline, warehouse, tools, agent, API, UI, configuration, security |
+| [docs/DATA_DICTIONARY.md](docs/DATA_DICTIONARY.md) | Input files and every warehouse table and column |
+| [docs/DEVELOPER.md](docs/DEVELOPER.md) | Setup and how-to: add a drug or analysis, change rules, test, debug |
+
 ## Getting started (new developers)
 
 1. Clone the repo.

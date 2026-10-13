@@ -4,6 +4,7 @@ Run:  python -m uvicorn app.server:app --port 8000     then open http://localhos
 """
 from __future__ import annotations
 
+import asyncio
 import json
 import uuid
 
@@ -15,13 +16,14 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from starlette.concurrency import run_in_threadpool
 
-from app import settings, store
+from app import pins, settings, store
 from app.agent import Agent, add_panel_result, rewind_last_exchange
 from ciq.tools import command_center as cc
 from ciq.tools import compare, journey
+from ciq.tools import cohort_builder as cbuild
 from ciq import methodology
 from ciq import config as ciq_config
-from ciq.tools.base import coverage, json_safe, query, resolve_product
+from ciq.tools.base import coverage, json_safe, query, resolve_product, sql_literal
 from ciq.tools.registry import TOOLS, run_tool
 
 app = FastAPI(title="CIQ Data Intelligence")
@@ -78,8 +80,27 @@ class CompareRequest(BaseModel):
 class CohortRequest(BaseModel):
     name: str = Field(min_length=1, max_length=80)
     hcp_ids: list[str] = Field(default_factory=list, max_length=20000)
-    patient_ids: list[str] = Field(default_factory=list, max_length=20000)
+    patient_ids: list[str] = Field(default_factory=list, max_length=100000)
     definition: str = ""
+    product: str | None = None
+
+
+class CohortFromSpecRequest(BaseModel):
+    name: str = Field(min_length=1, max_length=80)
+    kind: str
+    spec: str
+    product: str | None = None
+
+
+class CohortAskRequest(BaseModel):
+    question: str = Field(min_length=1, max_length=2000)
+    study_period: dict | None = None
+
+
+class CohortTreeRequest(BaseModel):
+    tree: dict | None = None
+    study_period: dict | None = None
+    name: str | None = None
     product: str | None = None
 
 
@@ -90,11 +111,41 @@ class ChatRequest(BaseModel):
     retry: bool = False   # regenerate the reply to the conversation's last message (message is ignored)
 
 
+class PlaygroundLotRequest(BaseModel):
+    cycle_window_days: int | None = None
+    line_gap_days: int | None = None
+    min_cycles: int | None = None
+    min_days: int | None = None
+
+
+class PinRequest(BaseModel):
+    key: str = Field(default="", max_length=240)
+    title: str = Field(default="Pinned chart", max_length=200)
+    subtitle: str = Field(default="", max_length=400)
+    tool: str = Field(default="", max_length=80)
+    product: str | None = None
+    conversation_id: str | None = None
+    charts: list = Field(default_factory=list)
+    kpis: list = Field(default_factory=list)
+    visual: dict | None = None
+
+
 # ---------------------------------------------------------------------------
 @app.get("/api/meta")
 async def meta():
-    products = await run_in_threadpool(
-        lambda: query("select product, molecules, drug_class, patients from fn_product_catalog(p_therapy_group := 'LUNG_SYSTEMIC')"))
+    def catalog():
+        wanted = list(ciq_config.UI_BRANDS)
+        listed = ", ".join(sql_literal(p) for p in wanted)
+        df = query(f"""
+            select product_form as product,
+                   string_agg(distinct molecule, ', ') as molecules,
+                   any_value(drug_class) as drug_class,
+                   count(distinct patient_id) as patients
+            from fact_drug_event
+            where product_form in ({listed})
+            group by product_form""")
+        return df.set_index("product").reindex(wanted).dropna(how="all").reset_index()
+    products = await run_in_threadpool(catalog)
     return {"coverage": await run_in_threadpool(coverage), "model": settings.MODEL_LABEL,
             "user": {"name": settings.USER_NAME, "email": settings.USER_EMAIL, "role": settings.USER_ROLE},
             "indication": ciq_config.INDICATION_NAME, "default_product": ciq_config.DEFAULT_PRODUCT,
@@ -111,8 +162,8 @@ async def overview(product: str | None = None):
             select (select count(*) from dim_patient) patients,
                    (select count(*) from dim_patient where is_treated) treated,
                    (select count(*) from fn_product_index(?)) product_patients,
-                   (select count(distinct hcp_id) from fact_drug_event where product = ?) product_hcps
-        """, [p, p]).iloc[0]
+                   (select count(distinct hcp_id) from fact_drug_event where product = ? or product_form = ?) product_hcps
+        """, [p, p, p]).iloc[0]
         trend = run_tool("product_trend", {"product": p}).to_dict()
         last = trend["data"][-1] if trend["data"] else {}
         return {"product": p, "kpis": [
@@ -160,9 +211,9 @@ async def chat(req: ChatRequest):
 
 
 @app.get("/api/command-center")
-async def command_center(product: str | None = None, window: int = 3):
+async def command_center(product: str | None = None, window: int = 1):
     try:
-        return await run_in_threadpool(cc.build, product, max(1, min(window, 3)))
+        return await run_in_threadpool(cc.build, product, cc.normalize_window(window))
     except ValueError as e:
         raise HTTPException(400, str(e))
 
@@ -226,6 +277,122 @@ async def create_cohort(req: CohortRequest):
     try:
         c = await run_in_threadpool(compare.save_cohort, req.name, req.hcp_ids, req.definition, req.product,
                                     req.patient_ids)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    return {k: v for k, v in c.items() if k not in ("hcp_ids", "patient_ids")} | {"size": compare.cohort_size(c)}
+
+
+@app.get("/api/cohorts/options")
+async def cohort_options(kind: str = "patient", product: str | None = None):
+    p = resolve_product(product)
+    if kind == "hcp":
+        opts = await run_in_threadpool(compare.hcp_cohort_options, p)
+    else:
+        opts = compare.patient_cohort_options()
+    opts = [o for o in opts if not o.get("saved")]
+    saved = [{k: v for k, v in c.items() if k not in ("hcp_ids", "patient_ids")} | {"size": compare.cohort_size(c)}
+             for c in compare.list_cohorts()]
+    return json_safe({"kind": kind, "product": p, "options": opts, "saved": saved})
+
+
+@app.get("/api/cohorts/preview")
+async def cohort_preview(kind: str = "patient", spec: str = "all", product: str | None = None):
+    try:
+        return json_safe(await run_in_threadpool(compare.preview_cohort, kind, spec, product))
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
+@app.post("/api/cohorts/from-spec")
+async def create_cohort_from_spec(req: CohortFromSpecRequest):
+    try:
+        c = await run_in_threadpool(compare.save_cohort_from_spec, req.name, req.kind, req.spec, req.product)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    return {k: v for k, v in c.items() if k not in ("hcp_ids", "patient_ids")} | {"size": compare.cohort_size(c)}
+
+
+@app.get("/api/codes/suggest")
+async def codes_suggest(system: str = "ICD", q: str = "", limit: int = 20):
+    try:
+        return json_safe(await run_in_threadpool(cbuild.suggest_codes, system, q, limit))
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
+@app.get("/api/codes/search")
+async def codes_search(q: str = "", system: str | None = None, limit: int = 25):
+    hits = await run_in_threadpool(cbuild.search_codes, q, system, limit)
+    if len(hits) < 8 and (q or "").strip() and not any(ch.isdigit() for ch in q):
+        extra = await _bedrock_code_hints(q)
+        seen = {(h["system"], h["code"]) for h in hits}
+        for h in extra:
+            key = (h["system"], h["code"])
+            if key not in seen:
+                hits.append(h)
+                seen.add(key)
+    return json_safe(hits[:limit])
+
+
+@app.post("/api/cohorts/ask")
+async def cohort_ask(req: CohortAskRequest):
+    q = req.question.strip()
+    tree = cbuild.parse_question(q)
+    if tree is None:
+        tree = cbuild.keep_warehouse_tree(await _bedrock_cohort_tree(q))
+    if tree is None:
+        return {"question": q, "size": 0, "empty": True, "tree": None, "label": None,
+                "answer": "I could not match that to ICD, CPT or NDC codes in this extract. Name a code, then AND, OR, or followed by."}
+    pack = json_safe(await run_in_threadpool(cbuild.json_tree, tree, req.study_period))
+    pack["question"] = q
+    pack["answer"] = cbuild.ask_answer(pack)
+    return pack
+
+
+@app.post("/api/cohorts/query")
+async def cohort_query(req: CohortTreeRequest):
+    try:
+        return json_safe(await run_in_threadpool(cbuild.json_tree, req.tree, req.study_period, False))
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
+@app.post("/api/cohorts/lot")
+async def cohort_lot(req: CohortTreeRequest):
+    try:
+        return json_safe(await run_in_threadpool(cbuild.lot_for_tree, req.tree, req.study_period))
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+
+@app.get("/api/playground/defaults")
+async def playground_defaults():
+    return json_safe(cc.playground_defaults())
+
+
+@app.post("/api/playground/lot")
+async def playground_lot(req: PlaygroundLotRequest | None = None):
+    raw = req.model_dump() if req else {}
+    try:
+        return json_safe(await run_in_threadpool(cc.playground_lot, raw))
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+
+@app.post("/api/cohorts/from-tree")
+async def create_cohort_from_tree(req: CohortTreeRequest):
+    if not (req.name or "").strip():
+        raise HTTPException(400, "name is required")
+    try:
+        def save():
+            ids = cbuild.patient_ids_for_tree(req.tree, study_period=req.study_period)
+            label = cbuild.summarize_tree(req.tree, req.study_period)
+            return compare.save_cohort(req.name, None, label[:300], req.product, ids)
+        c = await run_in_threadpool(save)
     except ValueError as e:
         raise HTTPException(400, str(e))
     return {k: v for k, v in c.items() if k not in ("hcp_ids", "patient_ids")} | {"size": compare.cohort_size(c)}
@@ -312,6 +479,27 @@ async def delete_conversation(cid: str):
     return {"ok": True}
 
 
+@app.get("/api/pins")
+async def get_pins():
+    return json_safe(pins.list_pins())
+
+
+@app.post("/api/pins")
+async def create_pin(req: PinRequest):
+    try:
+        pin = await run_in_threadpool(pins.add_pin, json_safe(req.model_dump()))
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    return json_safe(pin)
+
+
+@app.delete("/api/pins/{pid}")
+async def delete_pin(pid: str):
+    if not await run_in_threadpool(pins.remove_pin, pid):
+        raise HTTPException(404, "not found")
+    return {"ok": True}
+
+
 @app.post("/api/tools/{name}")
 async def call_tool(name: str, args: dict | None = None):
     """Run a tool directly (no LLM) - used by the UI to re-run a card with new parameters."""
@@ -320,6 +508,61 @@ async def call_tool(name: str, args: dict | None = None):
     except (KeyError, ValueError, TypeError) as e:
         raise HTTPException(400, str(e))
     return await run_in_threadpool(res.to_dict)
+
+
+async def _bedrock_code_hints(q: str) -> list[dict]:
+    """Optional disease→code hints from Bedrock, kept only if they exist in the warehouse."""
+    try:
+        from anthropic import AsyncAnthropicBedrock
+        client = AsyncAnthropicBedrock(aws_region=settings.AWS_REGION)
+        msg = await asyncio.wait_for(client.messages.create(
+            model=settings.MODEL_ID, max_tokens=400,
+            messages=[{"role": "user", "content":
+                       "List ICD-10-CM, CPT/HCPCS or NDC/brand codes for: " + q +
+                       '. Return JSON only: [{"system":"ICD"|"CPT"|"NDC","code":"..."}] max 12.'}],
+        ), timeout=8)
+        text = "".join(getattr(b, "text", "") or "" for b in msg.content)
+        start, end = text.find("["), text.rfind("]")
+        raw = json.loads(text[start:end + 1]) if start >= 0 and end > start else []
+    except Exception:
+        return []
+    out, seen = [], set()
+    for item in raw[:12]:
+        sys = str(item.get("system", "ICD")).upper()
+        code = str(item.get("code", "")).strip()
+        if sys not in cbuild.SYSTEMS or not code:
+            continue
+        for h in cbuild.suggest_codes(sys, code, limit=3):
+            key = (h["system"], h["code"])
+            if key not in seen:
+                out.append(h)
+                seen.add(key)
+    return out
+
+
+async def _bedrock_cohort_tree(q: str) -> dict | None:
+    """Optional English→criteria tree when the local parser cannot read the question."""
+    try:
+        from anthropic import AsyncAnthropicBedrock
+        client = AsyncAnthropicBedrock(aws_region=settings.AWS_REGION)
+        msg = await asyncio.wait_for(client.messages.create(
+            model=settings.MODEL_ID, max_tokens=800,
+            messages=[{"role": "user", "content":
+                       "Convert this patient-cohort question into a JSON criteria tree for a claims extract. "
+                       "ICD/CPT/NDC only; use only codes named in the question. Codes in one criterion are OR. "
+                       "join on later children must be AND, OR, or SEQ (SEQUENTIAL EVENT). "
+                       'Schema: {"kind":"group","children":[{"kind":"criterion","system":"ICD"|"CPT"|"NDC",'
+                       '"codes":[{"code":"..."}],"join":"AND"}]}. An ICD stem matches that family (C78 matches C78 and subcodes). '
+                       "NDC may be a brand present in the extract. JSON only, no markdown.\n\n" + q}],
+        ), timeout=12)
+        text = "".join(getattr(b, "text", "") or "" for b in msg.content)
+        start, end = text.find("{"), text.rfind("}")
+        raw = json.loads(text[start:end + 1]) if start >= 0 and end > start else None
+    except Exception:
+        return None
+    if not isinstance(raw, dict) or (raw.get("kind") or "group") != "group":
+        return None
+    return raw
 
 
 # ---------------------------------------------------------------------------

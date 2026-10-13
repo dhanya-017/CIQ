@@ -91,7 +91,7 @@ def build(input_path: str | Path | None = None, validate_only: bool = False, if_
         if info.layout == "claims_master":
             raise ValueError("This is a v1 claims_master file, which is no longer a supported input. Use the "
                              "master_nsclc extract, or check out git tag v1-claims-master for the old version.")
-        log(f"Input {config.INPUT_PATH} ({config.INPUT_PATH.stat().st_size / 1e6:,.0f} MB)")
+        log(f"Input {config.INPUT_PATH} ({info.layout}, {config.INPUT_PATH.stat().st_size / 1e6:,.0f} MB)")
         ctx = BuildContext(con, info, validate_only=validate_only)
         for i, (name, step) in enumerate(STEPS, 1):
             log(f"Step {i}/{len(STEPS)}: {name}")
@@ -192,7 +192,7 @@ def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="python -m ciq.build.build_warehouse",
                                  description="Build the CIQ warehouse from one claims file (plug and play).")
     ap.add_argument("--input", help="claims file (.csv / .csv.gz / .tsv / .parquet); default CIQ_INPUT or "
-                                    "Data/real_data/master_nsclc.csv")
+                                    "Data/real_data/master_nsclc.csv or the newest data_stack*.parquet")
     ap.add_argument("--validate-only", action="store_true", help="check the input and report; build nothing")
     ap.add_argument("--if-changed", action="store_true", help="skip if input, reference files, rules and code "
                                                                 "are unchanged")

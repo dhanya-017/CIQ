@@ -10,7 +10,8 @@ WAREHOUSE_DB = WAREHOUSE_DIR / "ciq.duckdb"
 # ---------------------------------------------------------------------------
 # Input: ONE claims file (plug and play - see ciq/build/inputs.py)
 #   CIQ_INPUT        the claims extract: .csv / .csv.gz / .tsv / .parquet, any location and header spelling.
-#                    Default Data/real_data/master_nsclc.csv. Overridden by `build_warehouse --input PATH`.
+#                    Default Data/real_data/master_nsclc.csv, else the newest data_stack*.parquet.
+#                    Overridden by `build_warehouse --input PATH`.
 #   The claims file carries everything the build needs, including an `age` column.
 # Reference files (small, public, in git under ciq/reference/): drug dictionary, ICD-10-CM and HCPCS descriptions.
 # So a new user needs only the claims file; the build reads it and never modifies it.
@@ -18,12 +19,28 @@ WAREHOUSE_DB = WAREHOUSE_DIR / "ciq.duckdb"
 # The pre-migration version is git tag v1-claims-master.
 # ---------------------------------------------------------------------------
 MASTER_NSCLC_CSV = DATA_DIR / "real_data" / "master_nsclc.csv"          # default input
-INPUT_PATH = Path(os.getenv("CIQ_INPUT") or MASTER_NSCLC_CSV)
+
+
+def _default_input_path() -> Path:
+    env = os.getenv("CIQ_INPUT")
+    if env:
+        return Path(env)
+    if MASTER_NSCLC_CSV.exists():
+        return MASTER_NSCLC_CSV
+    stacks = sorted((DATA_DIR / "real_data").glob("data_stack*.parquet"))
+    if stacks:
+        return stacks[-1]
+    return MASTER_NSCLC_CSV
+
+
+INPUT_PATH = _default_input_path()
 PATIENT_AGE_CSV = Path(os.environ["CIQ_PATIENT_AGE"]) if os.getenv("CIQ_PATIENT_AGE") else None
 WAREHOUSE_BACKUPS_KEPT = 3                                              # automatic backups kept on each rebuild
 
 REFERENCE_DIR = Path(__file__).resolve().parent / "reference"
 DRUG_REFERENCE_CSV = REFERENCE_DIR / "drug_reference.csv"
+LOT_AGENT_MAP_CSV = REFERENCE_DIR / "lot_agent_map.csv"                  # notebook Code / Drug or Procedure Name map
+LOT_AGENT_MAP_XLSX = REFERENCE_DIR / "Drug Mapping 2.xlsx"
 ICD10CM_CSV = REFERENCE_DIR / "icd10cm.csv"                              # public CMS code file (scripts/fetch_icd10cm.py)
 HCPCS_CSV = REFERENCE_DIR / "hcpcs.csv"                                  # HCPCS Level II short descriptions (public)
 SQL_DIR = Path(__file__).resolve().parent / "sql"
@@ -40,7 +57,12 @@ COHORT_DX_LIKE = "%C34%"
 # Line-of-therapy business rules (applied at build time; see ciq/build/lot.py and ciq/methodology.py).
 LOT_REGIMEN_WINDOW_DAYS = 28     # rule 5: drugs given in the first N days of a line define its regimen...
 LOT_REGIMEN_WINDOW_CYCLES = 2    # ...and in its first N cycles (administration occasions), if those end later
-LOT_GAP_DAYS = 120               # rule 1: >= N days between administrations is a line advancement
+LOT_GAP_DAYS = 120               # warehouse LOT (ciq/build/lot.py): >= N days between administrations is a line break
+# Cohort-builder LOT (notebook rules; ciq/tools/cohort_lot.py). Applied after index date + ICD/NDC/CPT criteria.
+COHORT_LOT_CYCLE_WINDOW_DAYS = 4   # gap > N between administrations => new cycle
+COHORT_LOT_GAP_DAYS = 90           # gap > N between cycles => new line
+COHORT_LOT_MIN_CYCLES = 2          # original therapy needs >= N cycles ...
+COHORT_LOT_MIN_DAYS = 30           # ... and >= N days before a new agent advances the line
 CLEAN_START_DAYS = 90            # first therapy >= N days after data start => "clean" (likely true) start
 # Drugs that build lines: all anticancer therapy from pharmacy (NDC) and medical claims, including J-code drugs
 # billed as procedures. Supportive care (G-CSF, bone agents, antiemetics, ...) never defines a line.
@@ -64,5 +86,7 @@ IO_BRANDS = {
     "OPDIVO":    {"label": "Opdivo",    "sc_form": "OPDIVO QVANTIG",    "sc_codes": ["J9289"], "sc_name": "QVANTIG"},
     "TECENTRIQ": {"label": "Tecentriq", "sc_form": "TECENTRIQ HYBREZA", "sc_codes": ["J9024"], "sc_name": "HYBREZA"},
 }
+# Brand picker on the landing page: IV reference product then its SC form, in IO_BRANDS order.
+UI_BRANDS = tuple(name for brand, spec in IO_BRANDS.items() for name in (brand, spec["sc_form"]))
 # Claims in the first N days of data can't see earlier IO use, so "Initiated" there may be a continuing patient.
 SOB_WASHOUT_DAYS = 90

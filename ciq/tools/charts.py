@@ -1,4 +1,4 @@
-﻿"""Vega-Lite v5 chart spec builders.
+"""Vega-Lite v5 chart spec builders.
 
 Every tool returns renderable specs (data inlined) so the UI can draw the answer
 dynamically (react-vega / vega-embed / altair). Styling follows the platform's
@@ -25,7 +25,9 @@ CONFIG = {
              "domainColor": "#c9c8c2", "tickColor": "#c9c8c2", "labelFontSize": 12, "titleFontSize": 12,
              "titleFontWeight": 500, "titlePadding": 8},
     "legend": {"labelColor": "#3a3936", "titleColor": "#3a3936", "orient": "top", "labelFontSize": 12,
-               "symbolType": "circle", "columnPadding": 18, "rowPadding": 6, "labelLimit": 260},
+               "symbolType": "circle", "columnPadding": 18, "rowPadding": 6, "labelLimit": 260,
+               "layout": {"top": {"anchor": "middle"}, "bottom": {"anchor": "middle"},
+                          "left": {"anchor": "middle"}, "right": {"anchor": "middle"}}},
     "title": {"color": "#0b0b0b", "fontSize": 14, "fontWeight": 600, "anchor": "start", "subtitleColor": "#6b6a66",
               "subtitleFontSize": 12, "subtitlePadding": 4, "offset": 12},
     "range": {"category": CATEGORICAL},
@@ -132,7 +134,11 @@ def stacked_bar(df: pd.DataFrame, x: str, y: str, color: str, title: str, *, sub
     d["_stack_order"] = d[color].map({c: i for i, c in enumerate(domain)})
     spec = _base(d, title, subtitle)
     spec["mark"] = {"type": "bar", "cornerRadiusEnd": 0}
-    cat = {"field": x, "type": "ordinal", "title": x if x_title is None else x_title, **({"sort": x_sort} if x_sort else {})}
+    cat = {"field": x, "type": "ordinal", "title": x if x_title is None else x_title}
+    if x_sort:
+        cat["sort"] = x_sort
+    elif horizontal:
+        cat["sort"] = "-x"
     val = {"field": y, "type": "quantitative", "title": y_title or y, "stack": "normalize" if normalize else "zero",
            **({"axis": {"format": ".0%"}} if normalize else {})}
     spec["encoding"] = {("y" if horizontal else "x"): cat, ("x" if horizontal else "y"): val,

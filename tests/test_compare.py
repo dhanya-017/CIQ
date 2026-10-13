@@ -8,9 +8,11 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+import pandas as pd
 import pytest
 
 from ciq.tools import compare
+from ciq.tools.base import coverage, query
 from ciq.tools.registry import run_tool
 
 
@@ -29,8 +31,9 @@ def test_brands():
     share = next(r for r in d["data"]["scorecard"] if r["metric"] == "Patient share of treated market")
     assert share["diff_fmt"].endswith("pp")
     opp = d["meta"]["compare"]["opportunity"]
-    assert opp["count"] == len(d["data"]["opportunity_hcps"]) > 0     # HCPs where OPDIVO out-sells KEYTRUDA
-    assert all(r["opdivo_volume"] > r["keytruda_volume"] for r in d["data"]["opportunity_hcps"])
+    rows = d["data"]["opportunity_hcps"]
+    assert opp["count"] >= len(rows) > 0     # HCPs where OPDIVO out-sells KEYTRUDA (table may be capped)
+    assert all(r["opdivo_volume"] > r["keytruda_volume"] for r in rows)
 
 
 def test_hcp_cohorts_use_volume_share():
@@ -41,13 +44,16 @@ def test_hcp_cohorts_use_volume_share():
 
 
 def test_time_periods_explain_movement():
-    d = _check(compare.compare_segments("time", "2026-01..2026-03", "2026-04..2026-07", "KEYTRUDA"), "time")
+    months = [str(m) for m in pd.period_range(coverage()["data_start"], coverage()["data_end"], freq="M")]
+    a, b = f"{months[0]}..{months[2]}", f"{months[3]}..{months[6]}"
+    d = _check(compare.compare_segments("time", a, b, "KEYTRUDA"), "time")
     assert set(d["data"]["hcp_movement"][0]) >= {"movement", "hcps", "net_change_per_month"}
     assert any("per month" in r["metric"] for r in d["data"]["scorecard"])
 
 
 def test_patient_cohorts_and_benchmark():
-    _check(compare.compare_segments("patient", "age_lt65", "age_65plus", "KEYTRUDA"), "patient")
+    if query("select count(age) from dim_patient").iloc[0, 0]:
+        _check(compare.compare_segments("patient", "age_lt65", "age_65plus", "KEYTRUDA"), "patient")
     _check(compare.compare_segments("hcp", "high_low", "all", "KEYTRUDA"), "hcp")
 
 
@@ -55,7 +61,7 @@ def test_patient_cohorts_and_benchmark():
     ("brands", "KEYTRUDA", "KEYTRUDA", "two different"),
     ("hcp", "decile:1", "top", "unknown HCP cohort"),
     ("time", "2026-05..2026-02", "2026-06..2026-07", "ends before"),
-    ("patient", "age_lt65", "martians", "unknown patient cohort"),
+    ("patient", "age_lt65", "martians", "unknown patient cohort|needs patient age"),
     ("region", "a", "b", "kind must be"),
 ])
 def test_bad_sides_explain_themselves(kind, a, b, reason):
@@ -70,3 +76,8 @@ def test_saved_cohort_round_trip(tmp_path, monkeypatch):
     assert any(o["id"] == f"saved:{c['id']}" for o in compare.hcp_cohort_options("KEYTRUDA"))
     d = _check(compare.compare_segments("hcp", f"saved:{c['id']}", "all", "KEYTRUDA"), "hcp")
     assert d["title"] == "OPDIVO-leaning HCPs vs All HCPs"
+
+
+def test_preview_patient_cohort():
+    d = compare.preview_cohort("patient", "all", "KEYTRUDA")
+    assert d["size"] > 0 and d["label"] == "All treated patients"

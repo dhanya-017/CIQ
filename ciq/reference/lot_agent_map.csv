@@ -1,0 +1,89 @@
+code_key,agent,raw_name,description
+J9271,pembrolizumab,Keytruda,"Injection, pembrolizumab, 1 mg"
+00006302602,pembrolizumab,Keytruda,"1 vial per carton, 4 mL (100 mg), 25 mg/mL"
+00006302604,pembrolizumab,Keytruda,"2 vials per carton, 4 mL each"
+J9277,pembrolizumab,Keytruda Qlex,"Injection, pembrolizumab, 1 mg and berahyaluronidase alfa-pmph"
+00006308301,pembrolizumab,Keytruda Qlex,"395 mg and 4,800 units/2.4 mL vial, subcutaneous"
+00006508301,pembrolizumab,Keytruda Qlex,"790 mg and 9,600 units/4.8 mL vial, subcutaneous"
+J9299,nivolumab,Opdivo,"Injection, nivolumab, 1 mg"
+00003377211,nivolumab,Opdivo,40 mg/4 mL vial
+00003377412,nivolumab,Opdivo,100 mg/10 mL vial
+00003375614,nivolumab,Opdivo,120 mg/12 mL vial
+00003373413,nivolumab,Opdivo,240 mg/24 mL vial
+J9289,nivolumab,Opdivo Qvantig,"Injection, nivolumab, 2 mg and hyaluronidase-nvhy"
+00003312001,nivolumab,Opdivo Qvantig,"300 mg and 5,000 units/2.5 mL vial, subcutaneous"
+00003612001,nivolumab,Opdivo Qvantig,"600 mg and 10,000 units/5 mL vial, subcutaneous"
+J9022,atezolizumab,Tecentriq,"Injection, atezolizumab, 10 mg"
+50242091701,atezolizumab,Tecentriq,1200 mg/20 mL single-use vial
+50242091801,atezolizumab,Tecentriq,840 mg/14 mL vial
+J9024,atezolizumab,Tecentriq Hybreza,"Injection, atezolizumab, 5 mg and hyaluronidase-tqjs"
+50242093301,atezolizumab,Tecentriq Hybreza,"1,875 mg and 30,000 units/15 mL vial, subcutaneous"
+J9173,durvalumab,Imfinzi,"Injection, durvalumab, 10 mg"
+00310450012,durvalumab,Imfinzi,120 mg/2.4 mL vial
+00310461150,durvalumab,Imfinzi,500 mg/10 mL vial
+J9023,avelumab,Bavencio,"Injection, avelumab, 10 mg"
+44087353501,avelumab,Bavencio,200 mg/10 mL vial
+J9305,pemetrexed,Pemetrexed,"Injection, pemetrexed, not otherwise specified, 10 mg"
+00002764001,pemetrexed,Alimta,Alimta 100 mg/4 mL vial
+00002762301,pemetrexed,Alimta,Alimta 500 mg vial
+16729022903,pemetrexed,Pemetrexed,100 mg/4 mL vial (Accord)
+63323013410,pemetrexed,Pemetrexed,100 mg/4 mL vial (Fresenius)
+71288014510,pemetrexed,Pemetrexed,100 mg/4.2 mL vial (Meitheal)
+16729023011,pemetrexed,Pemetrexed,500 mg/20 mL vial (Accord)
+63323045050,pemetrexed,Pemetrexed,500 mg/20 mL vial (Fresenius)
+71288014650,pemetrexed,Pemetrexed,500 mg/20 mL vial (Meitheal)
+63323062100,pemetrexed,Pemetrexed,750 mg/30 mL vial (Fresenius)
+16729024438,pemetrexed,Pemetrexed,1 g/40 mL vial (Accord)
+63323062200,pemetrexed,Pemetrexed,1 g/40 mL vial (Fresenius)
+J9045,carboplatin,Carboplatin,"Injection, carboplatin, 50 mg"
+16729029512,carboplatin,Carboplatin,"Accord, 60 mL vial (12 billing units)"
+16729029534,carboplatin,Carboplatin,"Accord, 45 mL vial (9 billing units)"
+50742044745,carboplatin,Carboplatin,"Ingenus, 45 mL vial (9 billing units)"
+50742044860,carboplatin,Carboplatin,"Ingenus, 60 mL vial (12 billing units)"
+55150033501,carboplatin,Carboplatin,"Eugia, 45 mL vial (9 billing units)"
+60505628201,carboplatin,Carboplatin,"Apotex, 5 mL vial (1 billing unit)"
+61703015005,carboplatin,Carboplatin,"Pfizer, 15 mL vial (3 billing units)"
+61703026205,carboplatin,Carboplatin,"Pfizer, 45 mL vial (9 billing units)"
+61703060005,carboplatin,Carboplatin,"Pfizer, 60 mL vial (12 billing units)"
+J9060,cisplatin,Cisplatin,"Injection, cisplatin, powder or solution, 10 mg"
+16729028811,cisplatin,Cisplatin,"Accord, 50 mL vial (5 billing units)"
+16729028838,cisplatin,Cisplatin,"Accord, 100 mL vial (10 billing units)"
+25021025350,cisplatin,Cisplatin,"Sagent, 50 mL vial (5 billing units)"
+25021025351,cisplatin,Cisplatin,"Sagent, 100 mL vial (10 billing units)"
+63323010351,cisplatin,Cisplatin,"Fresenius Kabi, 50 mL vial (5 billing units)"
+63323010365,cisplatin,Cisplatin,"Fresenius Kabi, 100 mL vial (10 billing units)"
+68001028327,cisplatin,Cisplatin,"BluePoint, 50 mL vial (5 billing units)"
+68001028332,cisplatin,Cisplatin,"BluePoint, 100 mL vial (10 billing units)"
+J9267,paclitaxel,Paclitaxel,"Injection, paclitaxel, 1 mg"
+00703321301,paclitaxel,Paclitaxel,"Teva, 5 mL vial (30 billing units)"
+00703321601,paclitaxel,Paclitaxel,"Teva, 16.7 mL vial (100 billing units)"
+16714013701,paclitaxel,Paclitaxel,"Northstar, 50 mL vial (300 billing units)"
+25021025505,paclitaxel,Paclitaxel,"Sagent, 5 mL vial (30 billing units)"
+25021025550,paclitaxel,Paclitaxel,"Sagent, 50 mL vial (300 billing units)"
+63323076316,paclitaxel,Paclitaxel,"Fresenius Kabi, 16.7 mL vial (100 billing units)"
+63323076350,paclitaxel,Paclitaxel,"Fresenius Kabi, 50 mL vial (300 billing units)"
+70860020005,paclitaxel,Paclitaxel,"Athenex, 5 mL vial (30 billing units)"
+J9264,nab-paclitaxel,Nab-paclitaxel,"Injection, paclitaxel protein-bound particles, 1 mg"
+68817013450,nab-paclitaxel,Abraxane,Abraxane 100 mg vial (100 billing units)
+00517430001,nab-paclitaxel,Nab-paclitaxel,"American Regent, 100 mg vial"
+60505623004,nab-paclitaxel,Nab-paclitaxel,"Apotex, 100 mg vial"
+68001065137,nab-paclitaxel,Nab-paclitaxel,"BluePoint, 100 mg vial"
+69097039878,nab-paclitaxel,Nab-paclitaxel,"Cipla, 100 mg vial"
+71288018350,nab-paclitaxel,Nab-paclitaxel,"Meitheal, 100 mg vial"
+00781353191,nab-paclitaxel,Nab-paclitaxel,"Sandoz, 100 mg vial"
+J9035,bevacizumab,Bevacizumab (Avastin),"Injection, bevacizumab, 10 mg"
+50242006001,bevacizumab,Avastin,Avastin 100 mg/4 mL vial
+50242006101,bevacizumab,Avastin,Avastin 400 mg/16 mL vial
+Q5107,bevacizumab,Bevacizumab-awwb (Mvasi),"Injection, bevacizumab-awwb, biosimilar, (mvasi), 10 mg"
+55513020601,bevacizumab,Mvasi,Mvasi 100 mg/4 mL vial
+55513020701,bevacizumab,Mvasi,Mvasi 400 mg/16 mL vial
+Q5118,bevacizumab,Bevacizumab-bvzr (Zirabev),"Injection, bevacizumab-bvzr, biosimilar, (zirabev), 10 mg"
+00069031501,bevacizumab,Zirabev,Zirabev 100 mg/4 mL vial
+00069031401,bevacizumab,Zirabev,Zirabev 400 mg/16 mL vial
+Q5126,bevacizumab,Bevacizumab-maly (Alymsys),"Injection, bevacizumab-maly, biosimilar, (alymsys), 10 mg"
+70121175401,bevacizumab,Alymsys,Alymsys 100 mg/4 mL vial
+70121175501,bevacizumab,Alymsys,Alymsys 400 mg/16 mL vial
+Q5129,bevacizumab,Bevacizumab-adcd (Vegzelma),"Injection, bevacizumab-adcd (vegzelma), biosimilar, 10 mg"
+72606001101,bevacizumab,Vegzelma,"Vegzelma, Celltrion"
+72606001201,bevacizumab,Vegzelma,"Vegzelma, Celltrion"
+Q5160,bevacizumab,Jobevne,Bevacizumab biosimilar (Jobevne)

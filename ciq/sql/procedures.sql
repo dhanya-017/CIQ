@@ -32,7 +32,7 @@ order by patients desc;
 create or replace macro fn_product_index(p_product) as table
 select patient_id, min(service_date) as index_date, count(*) as n_product_events
 from fact_drug_event
-where product = upper(p_product)
+where product = upper(p_product) or product_form = upper(p_product)
 group by patient_id;
 
 -- Patient-level cohort for a product with demographics and follow-up.

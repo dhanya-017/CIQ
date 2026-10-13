@@ -7,7 +7,7 @@
   <link rel="icon" href="/static/assets/favicon.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Source+Serif+4:opsz,wght@8..60,500;8..60,600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/styles.css">
+  <link rel="stylesheet" href="/static/styles.css?v=pg4">
   <script src="https://cdn.jsdelivr.net/npm/vega@5"></script>
   <script src="https://cdn.jsdelivr.net/npm/vega-lite@5"></script>
   <script src="https://cdn.jsdelivr.net/npm/vega-embed@6"></script>
@@ -30,13 +30,21 @@
       </button>
     </div>
     <nav class="side-nav" aria-label="Main">
-      <button class="side-item side-new" id="btnNew" type="button" data-tip="New analysis">
+      <button class="side-item side-cohort" id="btnCohort" type="button" data-tip="Patient Cohort Builder">
+        <span class="si-ic"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M8 7a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM16 7a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM4.5 21v-1.5A4.5 4.5 0 0 1 9 15h0M14.5 15h.5a4.5 4.5 0 0 1 4.5 4.5V21M3 11.5h7M16 11.5h5" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+        <span class="si-label">Patient Cohort Builder</span>
+      </button>
+      <button class="side-item side-new" id="btnNew" type="button" data-tip="Cohort analysis">
         <span class="si-ic"><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M12 7v10M7 12h10" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
-        <span class="si-label">New analysis</span>
+        <span class="si-label">Cohort analysis</span>
       </button>
       <button class="side-item side-journey" id="btnJourney" type="button" data-tip="Patient Journey">
         <span class="si-ic"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M5 19a2 2 0 1 0 0-4 2 2 0 0 0 0 4zM19 9a2 2 0 1 0 0-4 2 2 0 0 0 0 4zM7 17h5a3 3 0 0 0 0-6h-1a3 3 0 0 1 0-6h6" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
         <span class="si-label">Patient Journey</span>
+      </button>
+      <button class="side-item side-play" id="btnPlayground" type="button" data-tip="Playground Tab">
+        <span class="si-ic"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M4 8h6v12H4zM14 4h6v16h-6zM7 8V5M17 4V2" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+        <span class="si-label">Playground Tab</span>
       </button>
       <label class="side-item side-search" id="searchRow" data-tip="Search">
         <span class="si-ic"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14zM20 20l-3.5-3.5" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
@@ -88,23 +96,13 @@
       <button class="icon-btn menu" id="btnMenu" aria-label="Collapse sidebar" title="Collapse sidebar (Ctrl+B)" aria-controls="sidebar" aria-expanded="true">
         <svg viewBox="0 0 24 24" width="20" height="20"><path d="M4 6h16M4 12h16M4 18h16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
       </button>
-      <div class="topbar-title" id="convTitle">New analysis</div>
+      <div class="topbar-title" id="convTitle">Cohort analysis</div>
       <div class="topbar-right">
-        <div class="context" role="group" aria-label="Analysis context">
-          <div class="brand-select">
-            <span>Brand</span>
-            <div id="brandPickerSlot"></div>
-            <select id="productSelect" hidden aria-hidden="true" tabindex="-1"></select>
-          </div>
-          <button class="btn-compare" id="btnCompare" type="button" title="Compare the brand with competitors, cohorts or time periods">
-            <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M9 4v16M15 4v16M4 8h5M4 16h5M15 12h5" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/></svg>
-            Compare
-          </button>
-        </div>
+        <select id="productSelect" hidden aria-hidden="true" tabindex="-1"></select>
         <div class="sources" id="sources">
           <button type="button" class="src-pill" id="srcPill" aria-haspopup="dialog" aria-expanded="false" aria-controls="srcPop">
             <span class="src-dot" aria-hidden="true"></span>
-            <span class="src-name">IQVIA Claims</span>
+            <span class="src-name">Claims data</span>
             <span class="src-count" id="srcCount">1 source</span>
             <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
           </button>
@@ -115,7 +113,7 @@
             <div class="sp-item connected">
               <span class="sp-logo iqvia">IQ</span>
               <span class="sp-text">
-                <span class="sp-name">IQVIA Claims <span class="sp-status ok">Connected</span></span>
+                <span class="sp-name">Claims data <span class="sp-status ok">Connected</span></span>
                 <span class="sp-desc">Medical (MX) &amp; pharmacy (RX) claims</span>
                 <span class="sp-facts" id="srcFacts">Loading…</span>
               </span>
@@ -146,6 +144,8 @@
     </section>
 
     <section class="journey" id="journey" aria-live="polite" hidden></section>
+    <section class="journey" id="cohort" aria-live="polite" hidden></section>
+    <section class="playground" id="playground" aria-live="polite" hidden></section>
 
     <footer class="composer-wrap">
       <div class="followups" id="followups" hidden></div>
@@ -175,6 +175,7 @@
     </footer>
   </main>
 </div>
+<button class="nav-scrim" id="navScrim" type="button" tabindex="-1" aria-label="Close menu" hidden></button>
 <div class="modal-back" id="compareModal" hidden>
   <div class="modal cxm" role="dialog" aria-modal="true" aria-labelledby="cxTitle">
     <header class="cm-head">
@@ -249,7 +250,9 @@
     </div>
   </div>
 </div>
-<script src="/static/app.js"></script>
-<script src="/static/journey.js"></script>
+<script src="/static/app.js?v=pg5"></script>
+<script src="/static/journey.js?v=pg1"></script>
+<script src="/static/cohort.js?v=cb-ask7"></script>
+<script src="/static/playground.js?v=pg6"></script>
 </body>
 </html>

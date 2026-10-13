@@ -216,7 +216,7 @@ class Agent:
     async def run(self, conv: store.Conversation, user_text: str, product: str | None) -> AsyncIterator[dict]:
         focus = product or conv.product or ciq_config.DEFAULT_PRODUCT
         conv.product = focus
-        if conv.title == "New analysis":
+        if conv.title in ("New analysis", "Cohort analysis"):
             conv.title = user_text.strip().replace("\n", " ")[:80]
         api_index = len(conv.api_messages)   # where this exchange starts, so it can be rewound for a retry
         if conv.pending:   # this message answers the clarifying question the last turn ended on
@@ -339,7 +339,7 @@ class Agent:
 def add_panel_result(conv: store.Conversation, user_text: str, product: str | None, result: dict, llm_text: str,
                      tool: str, tool_input: dict) -> None:
     """Record an analysis run from the UI (not by the model) as a conversation exchange, so the agent sees it."""
-    if conv.title == "New analysis":
+    if conv.title in ("New analysis", "Cohort analysis"):
         conv.title = user_text[:80]
     content = [{"type": "text", "text": f"<context>Focus brand selected in the UI: {product}</context>\n\n"
                                         f"[Run from the Compare panel] {user_text}"}]

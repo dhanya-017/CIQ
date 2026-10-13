@@ -18,11 +18,13 @@ def run(ctx) -> None:
     if not report.ok:
         raise ValueError(report.render())
 
-    ctx.log(f"Reading {info.path.name}")
+    ctx.log(f"Reading {info.path.name} ({info.layout})")
+    inner = (inputs.expand_data_stack_sql(info) if info.layout == "data_stack"
+             else f"(select row_number() over () as row_id, {inputs.canonical_select(info)} from {info.reader})")
     ctx.con.execute(f"""
         create temp table input_std as
-        select row_id, * replace ({inputs.source_sql('source')} as source), {inputs.date_sql('svc_dt')} as service_date
-        from (select row_number() over () as row_id, {inputs.canonical_select(info)} from {info.reader})
+        select * replace ({inputs.source_sql('source')} as source), {inputs.date_sql('svc_dt')} as service_date
+        from {inner}
     """)
     validate.check_data(ctx.con, "input_std", report)
     ctx.log(report.render())

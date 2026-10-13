@@ -20,7 +20,7 @@ _lock = threading.Lock()
 @dataclass
 class Conversation:
     id: str
-    title: str = "New analysis"
+    title: str = "Cohort analysis"
     product: str | None = None
     created_at: float = field(default_factory=time.time)
     updated_at: float = field(default_factory=time.time)

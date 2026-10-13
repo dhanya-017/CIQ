@@ -35,17 +35,44 @@ function jbtn(cls, text, onClick) {
 function showView(view) {
   state.view = view;
   const journey = view === "journey";
+  const cohort = view === "cohort";
+  const playground = view === "playground";
   $("#journey").hidden = !journey;
-  $("#thread").hidden = journey;
-  $(".composer-wrap").hidden = journey;
+  $("#cohort").hidden = !cohort;
+  const pg = $("#playground");
+  if (pg) pg.hidden = !playground;
+  const hideChat = journey || cohort || playground;
+  $("#thread").hidden = hideChat;
+  $(".composer-wrap").hidden = hideChat;
   $("#btnJourney").classList.toggle("active", journey);
   $("#btnJourney").setAttribute("aria-current", journey ? "page" : "false");
+  $("#btnCohort").classList.toggle("active", cohort);
+  $("#btnCohort").setAttribute("aria-current", cohort ? "page" : "false");
+  const btnPg = $("#btnPlayground");
+  if (btnPg) {
+    btnPg.classList.toggle("active", playground);
+    btnPg.setAttribute("aria-current", playground ? "page" : "false");
+  }
   if (journey) {
     closeAsk();
     $("#convTitle").textContent = "Patient Journey";
     history.replaceState(null, "", "/?view=journey");
     renderJourney();
-    $("#app").classList.remove("nav-open");
+    closeNavDrawer();
+  }
+  if (cohort) {
+    closeAsk();
+    $("#convTitle").textContent = "Patient Cohort Builder";
+    history.replaceState(null, "", "/?view=cohort");
+    renderCohortBuilder();
+    closeNavDrawer();
+  }
+  if (playground) {
+    closeAsk();
+    $("#convTitle").textContent = "Playground Tab";
+    history.replaceState(null, "", "/?view=playground");
+    renderPlayground();
+    closeNavDrawer();
   }
 }
 

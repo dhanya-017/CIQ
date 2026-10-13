@@ -49,7 +49,7 @@ def check_master() -> bool:
             return report(WARN, "Claims input", f"{p} not found - fine at runtime (the app reads only the warehouse); "
                           "needed only to rebuild", "put the claims file in Data/real_data/ or set CIQ_INPUT")
         return report(FAIL, "Claims input", f"{p} not found",
-                      "copy master_nsclc.csv into Data/real_data/ (see Data/README.md), or set CIQ_INPUT to your file")
+                      "copy master_nsclc.csv or a data_stack parquet into Data/real_data/, or set CIQ_INPUT")
     try:
         info = inputs.inspect(p)
     except ValueError as e:

@@ -63,9 +63,13 @@ def coverage() -> dict:
 
 def resolve_product(product: str | None) -> str:
     """Normalise a user-supplied product/brand/molecule name to the canonical product key."""
-    product = (product or config.DEFAULT_PRODUCT).strip()
-    cat = query("select distinct product, molecule from fact_drug_event")
-    products = set(cat["product"])
+    raw = (product or "").strip()
+    if raw.lower() in ("", "null", "undefined", "none"):
+        product = config.DEFAULT_PRODUCT
+    else:
+        product = raw
+    cat = query("select distinct product, molecule, product_form from fact_drug_event")
+    products = set(cat["product"]) | set(cat["product_form"].dropna())
     up = product.upper()
     if up in products:
         return up

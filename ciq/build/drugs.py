@@ -44,7 +44,8 @@ def build_drug_map(con, ref: pd.DataFrame) -> pd.DataFrame:
     for s in sigs.itertuples(index=False):
         # pandas string columns can hold NaN (a truthy float) for nulls; normalise to None
         s = s._replace(**{f: v if isinstance(v, str) else None
-                          for f, v in (("code", s.code), ("code_short_desc", s.code_short_desc))})
+                          for f, v in (("code", s.code), ("code_short_desc", s.code_short_desc),
+                                       ("prod_name", s.prod_name), ("ndc_desc", s.ndc_desc))})
         hit = code_to_row.get(s.code) if s.code else None
         match_type = "HCPCS" if hit is not None else None
         if hit is None:
@@ -74,6 +75,10 @@ def run(ctx) -> None:
     ctx.con.register("ref_df", ref)
     ctx.con.execute("create table ref_drug as select * from ref_df")
     drug_map = build_drug_map(ctx.con, ref)
+    for col in ("code_system", "code", "prod_name", "ndc_desc", "molecule", "product",
+                "drug_class", "therapy_group", "match_type"):
+        if col in drug_map.columns:
+            drug_map[col] = drug_map[col].map(lambda v: None if v is None or (isinstance(v, float) and pd.isna(v)) else str(v))
     ctx.con.register("drug_map_df", drug_map)
     ctx.con.execute("create table ref_drug_code_map as select * from drug_map_df")
     ctx.log(f"  mapped {len(drug_map):,} drug signatures -> {drug_map['molecule'].nunique()} molecules")

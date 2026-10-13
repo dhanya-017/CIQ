@@ -73,6 +73,40 @@ def patient_cohort_options() -> list[dict]:
         for c in list_cohorts() if c.get("kind") == "patient"]
 
 
+def _cohort_members(kind: str, spec: str, product: str) -> tuple[str, str, list[str]]:
+    """Resolve a preset (not a saved copy) to label, definition and member ids."""
+    if kind == "patient":
+        seg = _segment("patient", spec, product)
+        if spec.startswith("saved:"):
+            c = next((c for c in list_cohorts() if c["id"] == spec[6:] and c.get("kind") == "patient"), None)
+            return c["name"], c["definition"], [str(x) for x in c["patient_ids"]]
+        cond = PATIENT_COHORTS[spec][1]
+        ids = query(f"select patient_id from dim_patient where {cond}").patient_id.astype(str).tolist()
+        return seg["label"], seg["definition"], ids
+    if kind == "hcp":
+        label, ids, d = _resolve_hcps(spec, product)
+        return label, d, [str(x) for x in ids]
+    raise ValueError("kind must be patient or hcp")
+
+
+def preview_cohort(kind: str, spec: str, product: str | None = None) -> dict:
+    product = resolve_product(product)
+    label, definition, ids = _cohort_members(kind, spec, product)
+    return {"kind": kind, "spec": spec, "label": label, "definition": definition, "size": len(ids),
+            "product": product}
+
+
+def save_cohort_from_spec(name: str, kind: str, spec: str, product: str | None = None) -> dict:
+    product = resolve_product(product)
+    if spec.startswith("saved:"):
+        raise ValueError("pick a filter to save, not an existing saved cohort")
+    label, definition, ids = _cohort_members(kind, spec, product)
+    definition = f"{label}: {definition}"[:300]
+    if kind == "patient":
+        return save_cohort(name or label, None, definition, product, ids)
+    return save_cohort(name or label, ids, definition, product, None)
+
+
 # ---------------------------------------------------------------------------- side resolution
 def _hcp_table(product: str) -> pd.DataFrame:
     return query(f"""
@@ -142,7 +176,13 @@ def _month_range(spec: str) -> tuple[str, date, date]:
         raise ValueError(f"time period '{spec}' must look like 2026-01..2026-03") from None
     if end <= start:
         raise ValueError(f"time period '{spec}' ends before it starts")
-    label = start.strftime("%b") + ("" if lo == hi else "–" + pd.Timestamp(hi + "-01").strftime("%b")) + f" {start.year}"
+    end_month = pd.Timestamp(hi + "-01")
+    if lo == hi:
+        label = start.strftime("%b %Y")
+    elif start.year == end_month.year:
+        label = f"{start.strftime('%b')}–{end_month.strftime('%b %Y')}"
+    else:
+        label = f"{start.strftime('%b %Y')} – {end_month.strftime('%b %Y')}"
     return label, start.date(), end.date()
 
 

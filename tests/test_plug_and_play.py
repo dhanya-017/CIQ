@@ -103,3 +103,46 @@ def test_unreadable_dates_and_unknown_sources_are_rejected(isolated):
     df.to_csv(f, index=False)
     with pytest.raises(ValueError, match="unknown source"):
         pipeline.build(input_path=f, validate_only=True)
+
+
+def _data_stack() -> pd.DataFrame:
+    """Wide I/P/RX extract with diagnosis_code_1..N, matching Data/real_data/data_stack_*.parquet."""
+    return pd.DataFrame([
+        {"claim_id": "c1", "patient_id": "p1", "procedure_code": "J9271", "service_from_date": "2022-03-01",
+         "data_source": "P", "ndc_cd": None, "diagnosis_code_1": "C3490", "diagnosis_code_2": "I10",
+         "provider_rendering_id": "111", "days_supply": None, "quantity": 1.0},
+        {"claim_id": "c2", "patient_id": "p1", "procedure_code": "J9045", "service_from_date": "2022-03-01",
+         "data_source": "I", "ndc_cd": "00006302601", "diagnosis_code_1": "C3490", "diagnosis_code_2": None,
+         "provider_rendering_id": "111", "days_supply": None, "quantity": 1.0},
+        {"claim_id": "c3", "patient_id": "p2", "procedure_code": "J9299", "service_from_date": "2022-03-05",
+         "data_source": "P", "ndc_cd": None, "diagnosis_code_1": "C3411", "diagnosis_code_2": None,
+         "provider_rendering_id": "222", "days_supply": None, "quantity": 1.0},
+        {"claim_id": "r1", "patient_id": "p2", "procedure_code": None, "service_from_date": "2022-03-06",
+         "data_source": "RX", "ndc_cd": "310135030", "diagnosis_code_1": "C3411", "diagnosis_code_2": None,
+         "provider_rendering_id": "222", "days_supply": 30.0, "quantity": 30.0},
+        {"claim_id": "c4", "patient_id": "p3", "procedure_code": "J9271", "service_from_date": "2022-03-02",
+         "data_source": "P", "ndc_cd": None, "diagnosis_code_1": "I10", "diagnosis_code_2": None,
+         "provider_rendering_id": "111", "days_supply": None, "quantity": 1.0},
+    ])
+
+
+def test_data_stack_parquet_builds_end_to_end(isolated):
+    from ciq.build import inputs
+    f = isolated / "data_stack_20261010.parquet"
+    _data_stack().to_parquet(f, index=False)
+    assert inputs.inspect(f).layout == "data_stack"
+    assert pipeline.build(input_path=f) is True
+    con = duckdb.connect(str(config.WAREHOUSE_DB), read_only=True)
+    assert {r[0] for r in con.execute("select patient_id from dim_patient").fetchall()} == {"p1", "p2"}
+    products = {r[0] for r in con.execute("select distinct product from fact_drug_event").fetchall()}
+    assert "KEYTRUDA" in products
+    assert "OPDIVO" in products
+    dx = {r[0] for r in con.execute("select distinct dx_code from fact_dx_event where patient_id = 'p1'").fetchall()}
+    assert "C3490" in dx
+    assert "I10" in dx
+    sources = dict(con.execute("select source, count(*) from src_master_nsclc group by 1").fetchall())
+    assert sources.get("MX_PX")
+    assert sources.get("MX_RX")
+    assert sources.get("RX")
+    cov = con.execute("select data_start, data_end from ref_data_coverage").fetchone()
+    assert str(cov[0]) == "2022-03-01"

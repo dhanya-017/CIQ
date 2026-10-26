@@ -67,6 +67,7 @@ def test_build(product, window):
         assert reach and "Patients reaching each line" in reach["title"]["text"]
         reach_vals = reach["data"]["values"]
         assert reach_vals and reach_vals[0]["axis"] == "1L"
+        assert [v["axis"] for v in reach_vals] == [f"{i}L" for i in range(1, 6)]
         assert reach_vals[0]["patients"] > 0
         assert "(" in reach_vals[0]["caption"] and "\n" not in reach_vals[0]["caption"]
         assert reach["config"]["axis"]["grid"] is False
@@ -82,7 +83,7 @@ def test_build(product, window):
         assert dot and dot["title"]["text"] == "Days on therapy by line"
         dot_vals = dot["data"]["values"]
         assert {v["stat"] for v in dot_vals} == {"Mean days", "Median days"}
-        assert {v["line"] for v in dot_vals} == set(range(1, 11))
+        assert {v["line"] for v in dot_vals} == set(range(1, 6))
         l1 = [v for v in dot_vals if v["line"] == 1]
         assert l1 and all(v["n"] > 0 and 20 < v["days"] < 250 for v in l1)
         mol = snap["lot_molecule_chart"]
@@ -96,14 +97,21 @@ def test_build(product, window):
         assert mol["encoding"]["y"]["sort"] == sorted(tot, key=tot.get, reverse=True)
         pembro_1l = [v for v in mol_vals if v["drug"] == "pembrolizumab" and v["line"] == 1]
         assert pembro_1l and pembro_1l[0]["pct"] > 0
-        assert mol["encoding"]["x"]["scale"]["domain"] == [0, 100]
+        assert mol["encoding"]["x"]["scale"]["domain"] == [0, 60]
+        assert mol["encoding"]["x"]["axis"]["values"] == [0, 20, 40, 60]
+        assert mol["encoding"]["x"]["axis"]["labelExpr"] == "datum.value + '%'"
         flow = snap["lot_flow_chart"]
-        assert flow and "1L → 2L flow" in flow["title"]["text"]
-        assert "pembrolizumab" in flow["title"]["text"]
+        assert flow and flow["title"]["text"] == "Patient flow from 1L to 2L"
+        assert flow.get("width", 0) >= 1000
         assert flow["layer"][0]["mark"]["type"] == "area"
         ribbon = flow["layer"][0]["data"]["values"]
         assert ribbon and ribbon[0]["n"] >= 1
         assert "L1" in ribbon[0] and "L2" in ribbon[0]
+        assert len({v["L1"] for v in ribbon}) <= 9
+        assert len({v["L2"] for v in ribbon}) <= 9
+        nodes = flow["layer"][1]["data"]["values"]
+        assert any(v["regimen"] == "Other" for v in nodes)
+        assert all("(" in v["label"] for v in nodes)
     else:
         assert snap["mix_chart"] is None
         assert snap["brand_trend"] is None
@@ -122,3 +130,25 @@ def test_signal_actions_run():
         a = s["action"]
         if a["a"] and a["b"]:
             compare_segments(a["kind"], a["a"], a["b"], "KEYTRUDA")
+
+
+def test_snapshot_follows_saved_cohort(monkeypatch):
+    from ciq.tools import compare
+    from ciq.tools.base import query
+
+    market = cc.build("KEYTRUDA", 1)
+    ids = query("""
+        select distinct patient_id from fact_dx_event
+        where dx_code like 'C34%'
+          and date_trunc('month', service_date) = (select date_trunc('month', data_end) from ref_data_coverage)
+        limit 80""")
+    pids = ids.patient_id.astype(str).tolist()
+    assert pids
+    fake = {"id": "testcohort", "name": "Tiny slice", "kind": "patient",
+            "patient_ids": pids, "definition": "test"}
+    monkeypatch.setattr(compare, "list_cohorts", lambda: [fake])
+    d = cc.build("KEYTRUDA", 1, "testcohort")
+    assert d["context"]["cohort"]["name"] == "Tiny slice"
+    assert 0 < d["snapshot"]["total_patients"] <= len(pids)
+    assert d["snapshot"]["total_patients"] < market["snapshot"]["total_patients"]
+    assert all(b["patients"] <= d["snapshot"]["total_patients"] for b in d["snapshot"]["brands"])

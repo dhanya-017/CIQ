@@ -31,9 +31,59 @@ def test_c34_matches_all_subcodes():
     assert one["size"] <= fam["size"] <= d["size"]
 
 
+def test_ndc_search_drug_name_returns_ndc_codes():
+    hits = cb.search_codes("Keytruda", system="NDC")
+    assert hits
+    assert all(h["system"] == "NDC" and h["code"].isdigit() and len(h["code"]) == 11 for h in hits)
+    assert any(h["code"] == "00006302602" for h in hits)
+    assert all(not h["code"].startswith("J") for h in hits)
+    qlex = [h for h in hits if "qlex" in (h["label"] or "").lower()]
+    assert qlex and all(h["code"].startswith("00006") for h in qlex)
+
+
 def test_ndc_suggest_brand():
-    hits = cb.suggest_codes("NDC", "KEY")
-    assert hits and any("KEYTRUDA" in (h["code"] or "").upper() or "KEYTRUDA" in (h["label"] or "").upper() for h in hits)
+    hits = cb.suggest_codes("NDC", "KEYTRUDA")
+    assert hits
+    assert all(h["code"].isdigit() and len(h["code"]) == 11 for h in hits)
+    assert any("KEYTRUDA" in (h["label"] or "").upper() for h in hits)
+
+
+def test_ndc_suggest_returns_ndc_numbers():
+    hits = cb.suggest_codes("NDC", "0000")
+    assert hits
+    assert all(h["system"] == "NDC" and h["code"].isdigit() and len(h["code"]) >= 10 for h in hits)
+    assert cb.suggest_codes("NDC", "J9271") == []
+
+
+def test_cpt_codes_stay_visible_beside_other_systems():
+    hits = cb.search_codes("J9")
+    cpt = [h for h in hits if h["system"] == "CPT" and h["code"].upper().startswith("J9")]
+    assert cpt
+    assert all(h["system"] != "NDC" or h["code"].isdigit() for h in hits)
+    named = cb.search_codes("Keytruda")
+    assert any(h["system"] == "CPT" and h["code"] == "J9271" for h in named)
+    assert any(h["system"] == "NDC" and h["code"] == "00006302602" for h in named)
+    assert all(h["code"].isdigit() for h in named if h["system"] == "NDC")
+
+
+def test_cpt_suggest_uses_procedure_codes():
+    hits = cb.suggest_codes("CPT", "96")
+    assert hits
+    assert all(h["system"] == "CPT" and h["code"][:1].isdigit() for h in hits)
+    j = cb.suggest_codes("CPT", "J9271")
+    assert j and j[0]["code"] == "J9271" and j[0]["system"] == "CPT"
+    assert cb.suggest_codes("NDC", "J9271") == []
+
+
+def test_procedure_code_is_cpt_and_ndc_cd_is_ndc():
+    ndc = cb.evaluate_tree({"kind": "group", "children": [
+        {"kind": "criterion", "system": "NDC", "code": "J9271"}]})
+    cpt = cb.evaluate_tree({"kind": "group", "children": [
+        {"kind": "criterion", "system": "CPT", "code": "J9271"}]})
+    assert ndc["size"] == 0
+    assert cpt["size"] > 0
+    assert "ndc_cd" in (ndc["sql"] or "")
+    assert "procedure_code" in (cpt["sql"] or "")
 
 
 def test_evaluate_lung_dx():
@@ -281,7 +331,8 @@ def test_ndc_and_cpt_both_required_after_index():
 
     period = {"from": "2023-01-01", "to": "2023-12-31"}
     px = str(query(
-        "select px_code from fact_px_event group by 1 order by count(*) desc limit 1"
+        "select px_code from fact_px_event "
+        "group by 1 order by count(*) desc limit 1"
     ).px_code.iloc[0])
     icd = {"kind": "group", "children": [
         {"kind": "criterion", "system": "ICD", "code": "C34"}]}
@@ -303,4 +354,26 @@ def test_ndc_and_cpt_both_required_after_index():
     assert " and " in sql
     assert "NDC:KEYTRUDA" in cb.summarize_tree(both, period)
     assert f"CPT:{px}" in cb.summarize_tree(both, period)
+
+
+def test_or_between_ndc_and_cpt_is_not_and():
+    """The OR between NDC and CPT is kept when a study period sets the index."""
+    period = {"from": "2023-01-01", "to": "2023-12-31"}
+    px = "J9271"
+    both_and = {"kind": "group", "children": [
+        {"kind": "criterion", "system": "ICD", "code": "C34"},
+        {"kind": "criterion", "system": "NDC", "code": "00006302602", "join": "AND"},
+        {"kind": "criterion", "system": "CPT", "code": px, "join": "AND"}]}
+    both_or = {"kind": "group", "children": [
+        {"kind": "criterion", "system": "ICD", "code": "C34"},
+        {"kind": "criterion", "system": "NDC", "code": "00006302602", "join": "AND"},
+        {"kind": "criterion", "system": "CPT", "code": px, "join": "OR"}]}
+    n_and = cb.evaluate_tree(both_and, period)
+    n_or = cb.evaluate_tree(both_or, period)
+    assert " or exists " in (n_or["sql"] or "")
+    assert " or exists " not in (n_and["sql"] or "")
+    assert n_or["size"] >= n_and["size"]
+    summary = cb.summarize_tree(both_or, period)
+    assert " OR " in summary
+    assert "NDC:00006302602" in summary and f"CPT:{px}" in summary
 

@@ -45,6 +45,7 @@ def test_playground_lot_charts_and_custom_gap():
     assert base["lot_regimen_charts"]
     assert base["lot_dot_chart"]
     assert base["lot_molecule_chart"]
+    assert "lot_flow_chart" not in base
     wide = cc.playground_lot({"line_gap_days": 180})
     assert wide["rules"]["line_gap_days"] == 180
     assert wide["patients"] == base["patients"]

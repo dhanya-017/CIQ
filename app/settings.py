@@ -1,4 +1,4 @@
-"""Runtime settings for the CIQ app (override with environment variables)."""
+"""Runtime settings for the LoTrace app (override with environment variables)."""
 import os
 from pathlib import Path
 

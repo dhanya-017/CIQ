@@ -14,8 +14,10 @@ Without dates, the nested AND/OR/SEQ tree is evaluated as ever-had codes.
 """
 from __future__ import annotations
 
+import csv
 import re
 from datetime import date, datetime
+from functools import lru_cache
 
 from ciq import config
 from ciq.tools.base import json_safe, query, sql_literal
@@ -47,13 +49,16 @@ def suggest_codes(system: str, q: str, limit: int = 20) -> list[dict]:
     like = sql_literal(qn.replace("*", "") + "%")
     contains = sql_literal("%" + qn.replace("*", "") + "%")
     compact = sql_literal(_prefix(qn) + "%")
+    # A one- or two-character query matches too many descriptions and hides the code prefix.
+    desc = f" or coalesce(dx_desc, '') ilike {contains}" if len(qn) >= 3 else ""
+    px_desc = f" or coalesce(px_desc, '') ilike {contains}" if len(qn) >= 3 else ""
     if system == "ICD":
         df = query(f"""
             with hits as (
               select dx_code as code, any_value(dx_desc) as dx_desc, count(*) as n
               from fact_dx_event
               where replace(dx_code, '.', '') ilike {compact} or dx_code ilike {like}
-                    or coalesce(dx_desc, '') ilike {contains}
+                    {desc}
               group by dx_code
             )
             select h.code,
@@ -65,41 +70,43 @@ def suggest_codes(system: str, q: str, limit: int = 20) -> list[dict]:
                      h.n desc, h.code
             limit {n}""")
     elif system == "CPT":
+        named = suggest_drug_cpts(qn, limit=n) if any(ch.isalpha() for ch in qn) else []
+        seen = {h["code"].upper() for h in named}
         df = query(f"""
             with hits as (
-              select px_code as code, any_value(px_desc) as px_desc, count(*) as n
+              select px_code as procedure_code, any_value(px_desc) as px_desc, count(*) as n
               from fact_px_event
-              where px_code ilike {like} or coalesce(px_desc, '') ilike {contains}
+              where px_code is not null
+                and (px_code ilike {like}{px_desc})
               group by px_code
             )
-            select h.code, coalesce(nullif(h.px_desc, ''), r.short_desc, h.code) as label
+            select h.procedure_code as code, coalesce(nullif(h.px_desc, ''), r.short_desc, h.procedure_code) as label
             from hits h
-            left join ref_hcpcs r on r.code = h.code
-            order by h.n desc, h.code
+            left join ref_hcpcs r on r.code = h.procedure_code
+            order by h.n desc, h.procedure_code
             limit {n}""")
+        extra = [{"system": "CPT", "code": r.code, "label": r.label or r.code}
+                 for r in df.itertuples() if str(r.code).upper() not in seen]
+        return (named + extra)[:n]
     else:
+        named = suggest_drug_ndcs(qn, limit=n) if any(ch.isalpha() for ch in qn) else []
+        seen = {h["code"] for h in named}
         df = query(f"""
-            with hits as (
-              select product as code,
-                     concat_ws(' · ', nullif(product, ''), nullif(molecule, '')) as label,
-                     count(*) as n, 0 as rank
-              from fact_drug_event
-              where product ilike {contains} or molecule ilike {contains}
-                    or coalesce(product_form, '') ilike {contains}
-              group by product, molecule
-              union all
-              select cast(code as varchar),
-                     concat_ws(' · ', nullif(product, ''), cast(code as varchar)),
-                     count(*), 1
-              from fact_drug_event
-              where coalesce(cast(code as varchar), '') ilike {like}
-              group by code, product
+            select ndc_cd as code,
+                   coalesce(nullif(any_value(code_description), ''), ndc_cd) as label
+            from (
+              select case when source in ('RX', 'MX_RX') then code end as ndc_cd,
+                     code_description
+              from src_master_nsclc
             )
-            select code, any_value(label) as label from hits
-            where code is not null
-            group by 1
-            order by min(rank), sum(n) desc, length(code), code
+            where ndc_cd ilike {like}
+            group by ndc_cd
+            order by count(*) desc, ndc_cd
             limit {n}""")
+        extra = [{"system": "NDC", "code": r.code, "label": r.label or r.code}
+                 for r in df.itertuples() if r.code not in seen]
+        hits = (named + extra)[:n]
+        return hits
     hits = [{"system": system, "code": r.code, "label": r.label or r.code} for r in df.itertuples()]
     if system == "ICD":
         hits = _promote_icd_family(qn, hits)
@@ -124,16 +131,108 @@ def _promote_icd_family(qn: str, hits: list[dict]) -> list[dict]:
     return [{"system": "ICD", "code": stem, "label": label}] + hits
 
 
+@lru_cache(maxsize=1)
+def _drug_catalog() -> tuple[dict, ...]:
+    """NDC and procedure rows from the drug map: name, molecule, package description."""
+    from ciq.tools.cohort_lot import normalize_code
+
+    rows = []
+    with config.LOT_AGENT_MAP_CSV.open(newline="", encoding="utf-8") as fh:
+        for rec in csv.DictReader(fh):
+            code = normalize_code(rec.get("code_key"))
+            if not code:
+                continue
+            name = (rec.get("raw_name") or rec.get("agent") or "").strip()
+            agent = (rec.get("agent") or "").strip()
+            desc = (rec.get("description") or "").strip()
+            rows.append({
+                "code": code,
+                "is_ndc": code.isdigit() and len(code) >= 10,
+                "name": name or agent or code,
+                "description": desc,
+                "blob": " ".join(x for x in (name, agent, desc, code) if x).lower(),
+            })
+    return tuple(rows)
+
+
+def suggest_drug_cpts(q: str, limit: int = 20) -> list[dict]:
+    """Drug name or HCPCS stem -> procedure codes on the drug map (J9271, not an NDC)."""
+    qn = (q or "").strip().lower()
+    if not qn:
+        return []
+    n = max(1, min(int(limit), 40))
+    matched = [r for r in _drug_catalog() if not r["is_ndc"] and _catalog_hit(qn, r)]
+    return _label_drug_hits(matched, "CPT", n, "px_code", "fact_px_event")
+
+
+def _catalog_hit(qn: str, row: dict) -> bool:
+    if len(qn) < 3:
+        return row["code"].lower().startswith(qn)
+    return qn in row["blob"]
+
+
+def _label_drug_hits(matched: list[dict], system: str, n: int, column: str, table: str) -> list[dict]:
+    if not matched:
+        return []
+    lit = ", ".join(sql_literal(r["code"]) for r in matched)
+    present = set(query(
+        f"select distinct {column} as code from {table} where {column} in ({lit})"
+    ).code.astype(str))
+    matched.sort(key=lambda r: (r["code"] not in present, r["name"].lower(), r["code"]))
+    out = []
+    for r in matched[:n]:
+        label = r["name"]
+        desc = r["description"]
+        if desc and desc.lower() not in label.lower():
+            label = f"{label} · {desc}"
+        out.append({"system": system, "code": r["code"], "label": label})
+    return out
+
+
+def suggest_drug_ndcs(q: str, limit: int = 20) -> list[dict]:
+    """Drug name (brand or molecule) -> the NDC codes on the drug map."""
+    qn = (q or "").strip().lower()
+    if not qn:
+        return []
+    n = max(1, min(int(limit), 40))
+    matched = [r for r in _drug_catalog() if r["is_ndc"] and qn in r["blob"]]
+    if not matched:
+        return []
+    lit = ", ".join(sql_literal(r["code"]) for r in matched)
+    present = set(query(
+        f"select distinct code from src_master_nsclc "
+        f"where source in ('RX', 'MX_RX') and code in ({lit})"
+    ).code.astype(str))
+    matched.sort(key=lambda r: (r["code"] not in present, r["name"].lower(), r["code"]))
+    out = []
+    for r in matched[:n]:
+        label = r["name"]
+        desc = r["description"]
+        if desc and desc.lower() not in label.lower():
+            label = f"{label} · {desc}"
+        out.append({"system": "NDC", "code": r["code"], "label": label})
+    return out
+
+
 def search_codes(q: str, system: str | None = None, limit: int = 25) -> list[dict]:
     """Search by disease/term or code fragment across one or all systems."""
     qn = (q or "").strip()
     if not qn:
         return []
     systems = [system.upper()] if system and system.upper() in SYSTEMS else list(SYSTEMS)
+    n = max(1, min(int(limit), 40))
+    buckets = [suggest_codes(s, qn, limit=n) for s in systems]
+    buckets = [b for b in buckets if b]
+    if len(buckets) <= 1:
+        return (buckets[0] if buckets else [])[:n]
+    # Alternate systems so a long ICD list cannot push every CPT and NDC hit off the page.
     out = []
-    for s in systems:
-        out.extend(suggest_codes(s, qn, limit=limit))
-    return out[:limit]
+    rows = [list(b) for b in buckets]
+    while len(out) < n and any(rows):
+        for b in rows:
+            if b and len(out) < n:
+                out.append(b.pop(0))
+    return out
 
 
 def _codes_of(node: dict) -> list[str]:
@@ -154,9 +253,22 @@ def _event_table(sys: str) -> str:
     if sys == "ICD":
         return "fact_dx_event"
     if sys == "CPT":
-        return "fact_px_event"
+        # px_code is the claim procedure_code (CPT and HCPCS). It is never an NDC.
+        return "(select patient_id, service_date, px_code as procedure_code from fact_px_event)"
     if sys == "NDC":
-        return "fact_drug_event"
+        # Brands come from mapped drug events. NDC numbers come only from ndc_cd
+        # (pharmacy and medical NDC lines). fact_drug_event.code is the HCPCS procedure.
+        return """(
+            select patient_id, service_date, product, molecule, product_form,
+                   cast(null as varchar) as ndc_cd
+            from fact_drug_event
+            union all
+            select patient_id, service_date,
+                   cast(null as varchar), cast(null as varchar), cast(null as varchar),
+                   code as ndc_cd
+            from src_master_nsclc
+            where source in ('RX', 'MX_RX') and code is not null
+        )"""
     raise ValueError("system must be ICD, CPT or NDC")
 
 
@@ -170,11 +282,11 @@ def _event_pred(alias: str, sys: str, codes: list[str]) -> str | None:
         if sys == "ICD":
             parts.append(f"replace({alias}.dx_code, '.', '') ilike {pat}")
         elif sys == "CPT":
-            parts.append(f"replace({alias}.px_code, '.', '') ilike {pat}")
+            parts.append(f"replace({alias}.procedure_code, '.', '') ilike {pat}")
         elif sys == "NDC":
             lit = sql_literal(code.rstrip("*"))
             parts.append(
-                f"(replace(coalesce({alias}.code, ''), '.', '') ilike {pat} "
+                f"(replace(coalesce({alias}.ndc_cd, ''), '.', '') ilike {pat} "
                 f"or {alias}.product ilike {lit} or {alias}.molecule ilike {lit} "
                 f"or {alias}.product_form ilike {lit})")
         else:
@@ -235,10 +347,12 @@ def _code_sql(sys: str, code: str, after_index: bool = False, window_end: date |
 
 
 def _leaf_sql(node: dict, after_index: bool = False, index_event: dict | None = None,
-              window_end: date | None = None) -> str | None:
+              window_end: date | None = None, icd_as_true: bool = False) -> str | None:
     if after_index and index_event is not None and node is index_event:
         return "true"
     sys = (node.get("system") or "ICD").upper()
+    if icd_as_true and sys == "ICD":
+        return "true"
     parts = [p for p in (_code_sql(sys, c, after_index, window_end) for c in _codes_of(node)) if p]
     if not parts:
         return None
@@ -248,15 +362,17 @@ def _leaf_sql(node: dict, after_index: bool = False, index_event: dict | None = 
 
 
 def _child_sql(ch: dict, depth: int, leaves: list[int], after_index: bool = False,
-               index_event: dict | None = None, window_end: date | None = None) -> str | None:
+               index_event: dict | None = None, window_end: date | None = None,
+               icd_as_true: bool = False) -> str | None:
     kind = ch.get("kind") or "criterion"
     if kind == "group":
         return _group_sql(ch, depth + 1, leaves, after_index=after_index, index_event=index_event,
-                          window_end=window_end)
+                          window_end=window_end, icd_as_true=icd_as_true)
     leaves[0] += max(1, len(_codes_of(ch)))
     if leaves[0] > MAX_LEAVES:
         raise ValueError("too many criteria")
-    return _leaf_sql(ch, after_index=after_index, index_event=index_event, window_end=window_end)
+    return _leaf_sql(ch, after_index=after_index, index_event=index_event, window_end=window_end,
+                     icd_as_true=icd_as_true)
 
 
 def _is_seq(join: str) -> bool:
@@ -319,7 +435,7 @@ def _seq_sql(index_ch: dict, follow_ch: dict, after_index: bool = False,
 
 def _fold_sql(children: list[dict], depth: int, leaves: list[int], default_join: str = "AND",
               after_index: bool = False, index_event: dict | None = None,
-              window_end: date | None = None) -> str | None:
+              window_end: date | None = None, icd_as_true: bool = False) -> str | None:
     """Left-associative AND/OR; SEQ replaces the previous criterion with index→follow-up."""
     terms: list[str] = []
     joins: list[str] = []
@@ -337,7 +453,7 @@ def _fold_sql(children: list[dict], depth: int, leaves: list[int], default_join:
             prev_ch = ch
             continue
         sql = _child_sql(ch, depth, leaves, after_index=after_index, index_event=index_event,
-                         window_end=window_end)
+                         window_end=window_end, icd_as_true=icd_as_true)
         if not sql:
             continue
         if not terms:
@@ -358,7 +474,8 @@ def _fold_sql(children: list[dict], depth: int, leaves: list[int], default_join:
 
 
 def _group_sql(node: dict, depth: int, leaves: list[int], after_index: bool = False,
-               index_event: dict | None = None, window_end: date | None = None) -> str | None:
+               index_event: dict | None = None, window_end: date | None = None,
+               icd_as_true: bool = False) -> str | None:
     """Criteria in a group combine first, then that result is AND/OR with nested groups."""
     if depth > MAX_DEPTH:
         raise ValueError("too many nested groups")
@@ -366,10 +483,11 @@ def _group_sql(node: dict, depth: int, leaves: list[int], after_index: bool = Fa
     criteria = [c for c in kids if (c.get("kind") or "criterion") != "group"]
     nested = [c for c in kids if (c.get("kind") or "criterion") == "group"]
     expr = _fold_sql(criteria, depth, leaves, node.get("op") or "AND",
-                     after_index=after_index, index_event=index_event, window_end=window_end)
+                     after_index=after_index, index_event=index_event, window_end=window_end,
+                     icd_as_true=icd_as_true)
     for g in nested:
         sql = _child_sql(g, depth, leaves, after_index=after_index, index_event=index_event,
-                         window_end=window_end)
+                         window_end=window_end, icd_as_true=icd_as_true)
         if not sql:
             continue
         if expr is None:
@@ -476,15 +594,11 @@ def _combine_pred(tree: dict | None, study_period: dict | None) -> tuple[str | N
     idx = f"patient_id in (select i.patient_id from ({idx_sql}) i)" if (start or end) else None
     if start or end:
         by = _codes_by_system(tree)
-        parts = []
-        ndc = _post_index_exists("NDC", by["NDC"])
-        cpt = _post_index_exists("CPT", by["CPT"])
-        if ndc:
-            parts.append(ndc)
-        if cpt:
-            parts.append(cpt)
-        if parts:
-            follow = " and ".join(parts)
+        follow = None
+        if tree and (by["NDC"] or by["CPT"]):
+            # ICD codes define the index. NDC/CPT keep the AND/OR/SEQ the user set.
+            follow = _group_sql(tree, 0, [0], after_index=True, icd_as_true=True)
+        if follow and follow != "true":
             return (f"patient_id in (select i.patient_id from ({idx_sql}) i where {follow})", idx)
         return idx, idx
     pred = _group_sql(tree, 0, [0]) if tree else None
@@ -542,12 +656,35 @@ def summarize_tree(tree: dict | None, study_period: dict | None = None) -> str:
         by = _codes_by_system(tree)
         icd = "|".join(by["ICD"])
         prefix = f"INDEX[{start or '…'}..{end or '…'}; first {('ICD:' + icd) if icd else 'diagnosis'}]"
-        bits = [prefix]
-        if by["NDC"]:
-            bits.append("NDC:" + "|".join(by["NDC"]))
-        if by["CPT"]:
-            bits.append("CPT:" + "|".join(by["CPT"]))
-        return " AND ".join(bits)
+        if not by["NDC"] and not by["CPT"]:
+            return prefix
+
+        def walk_follow(n):
+            if (n.get("kind") or "criterion") == "group":
+                kids = n.get("children") or []
+                criteria = [c for c in kids if (c.get("kind") or "criterion") != "group"]
+                nested = [c for c in kids if (c.get("kind") or "criterion") == "group"]
+                acc = _fold_summary(criteria, walk_follow)
+                for g in nested:
+                    bit = walk_follow(g)
+                    if not bit:
+                        continue
+                    if not acc:
+                        acc = bit
+                    else:
+                        acc = f"({acc} {(g.get('join') or 'AND')} {bit})"
+                return acc
+            if (n.get("system") or "ICD").upper() == "ICD":
+                return ""
+            codes = _codes_of(n)
+            if not codes:
+                return ""
+            return f"{n.get('system', 'ICD')}:{ '|'.join(codes) }"
+
+        body = walk_follow(tree) if tree else ""
+        if body:
+            return f"{prefix} AND {body}"
+        return prefix
     prefix = ""
 
     def walk(n):

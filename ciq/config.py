@@ -1,4 +1,4 @@
-"""Central configuration for the CIQ data platform."""
+"""Central configuration for the LoTrace data platform."""
 import os
 from pathlib import Path
 

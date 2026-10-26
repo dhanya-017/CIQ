@@ -1,4 +1,4 @@
-/* CIQ - Playground Tab: default vs user-defined LOT rules, side by side. */
+/* LoTrace - Playground Tab: default vs user-defined LOT rules, side by side. */
 "use strict";
 
 const PG = { token: 0, defaults: null, user: null };
@@ -129,32 +129,31 @@ async function renderPlayground() {
   defCharts.appendChild(el("p", "pg-note", "Building LoT summaries…"));
   defCol.appendChild(defCharts);
 
-  const userCol = el("section", "pg-col");
+  const userCol = el("form", "pg-col");
   userCol.append(
     el("h2", null, "User defined rules"),
-    el("p", "pg-note", "Set the four line-building parameters, then build summaries on this extract."));
-  const form = el("form", "pg-form");
-  form.appendChild(pgRuleGrid(PG.user && PG.user.rules ? PG.user.rules : {}, true));
+    el("p", "pg-note", "Set the four line-building parameters, then build summaries on this extract."),
+    pgRuleGrid(PG.user && PG.user.rules ? PG.user.rules : {}, true));
   const actions = el("div", "pg-actions");
   const go = el("button", "cm-btn primary", "Build summaries");
   go.type = "submit";
   const clear = el("button", "cm-btn", "Clear");
   clear.type = "button";
   actions.append(go, clear);
-  form.appendChild(actions);
   const userCharts = el("div", "pg-charts");
   if (PG.user) pgPaintCharts(userCharts, PG.user);
   else pgEmptyUserCharts(userCharts);
-  form.addEventListener("submit", async (e) => {
+  userCol.append(actions, userCharts);
+  userCol.addEventListener("submit", async (e) => {
     e.preventDefault();
     go.disabled = true;
     clear.disabled = true;
     go.textContent = "Building…";
     userCharts.replaceChildren(el("p", "pg-note", "Building LoT summaries…"));
     try {
-      const pack = await pgFetchLot(pgRulesFromForm(form));
+      const pack = await pgFetchLot(pgRulesFromForm(userCol));
       PG.user = pack;
-      if (pack.rules) pgFillRules(form, pack.rules);
+      if (pack.rules) pgFillRules(userCol, pack.rules);
       pgPaintCharts(userCharts, pack);
     } catch (err) {
       userCharts.replaceChildren(el("div", "error-box", err.message || String(err)));
@@ -164,9 +163,8 @@ async function renderPlayground() {
     go.textContent = "Build summaries";
   });
   clear.addEventListener("click", () => {
-    pgFillRules(form, {});
+    pgFillRules(userCol, {});
   });
-  userCol.append(form, userCharts);
 
   cols.append(defCol, userCol);
   shell.append(head, cols);

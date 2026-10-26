@@ -34,6 +34,7 @@ def run(ctx) -> None:
         return
 
     ndc = f"lpad({strip0('code')}, 11, '0')"
+    procedure = "nullif(nullif(upper(trim(code)), 'NAN'), '')"
     ctx.con.execute(f"""
         create table src_master_nsclc as
         select row_id,
@@ -42,8 +43,10 @@ def run(ctx) -> None:
                {strip0('patient_id')}                                   as patient_id,
                service_date,
                nullif(nullif(upper(trim(diagnosis_code)), 'NAN'), '')  as diagnosis_code,
+               case when source in ('RX', 'MX_RX') then {ndc} end       as ndc_cd,
+               case when source = 'MX_PX' then {procedure} end          as procedure_code,
                case when source in ('RX', 'MX_RX') then {ndc}
-                    else nullif(nullif(upper(trim(code)), 'NAN'), '') end as code,      -- NDC-11 or CPT/HCPCS
+                    else {procedure} end                                as code,      -- NDC-11 or procedure code
                nullif(trim(code_description), '')                       as code_description,
                coalesce({strip0('rendering_provider_id')}, {strip0('renderring_provider_id')}) as rendering_provider_id,
                {strip0('referring_provider_id')}                        as referring_provider_id,

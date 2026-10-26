@@ -13,7 +13,7 @@ import pandas as pd
 
 from ciq import config
 from ciq.tools import charts, compare
-from ciq.tools.base import coverage, json_safe, pct, query, resolve_product
+from ciq.tools.base import coverage, json_safe, pct, query, resolve_product, sql_literal
 
 LUNG = "therapy_group = 'LUNG_SYSTEMIC'"
 OTHER_INDICATIONS = ["Breast cancer", "Melanoma", "Colorectal cancer", "Multiple myeloma"]
@@ -41,6 +41,31 @@ def _io_product_names(families: list[str]) -> list[str]:
         if sc:
             names.append(sc)
     return names
+
+
+def _cohort_meta(cohort: dict | None) -> dict | None:
+    if not cohort:
+        return None
+    return {"id": cohort.get("id"), "name": cohort.get("name"), "kind": cohort.get("kind"),
+            "size": compare.cohort_size(cohort), "definition": cohort.get("definition") or ""}
+
+
+def _cohort_patient_pred(cohort: dict | None) -> str:
+    """SQL fragment on patient_id. `true` keeps the full C34 market."""
+    if not cohort:
+        return "true"
+    if cohort.get("kind") == "hcp":
+        hcps = [str(x) for x in (cohort.get("hcp_ids") or []) if x]
+        if not hcps:
+            return "false"
+        hsql = ",".join(sql_literal(x) for x in hcps)
+        ids = query(f"select distinct cast(patient_id as varchar) as patient_id from fact_drug_event "
+                    f"where hcp_id in ({hsql})").patient_id.astype(str).tolist()
+    else:
+        ids = [str(x) for x in (cohort.get("patient_ids") or []) if x]
+    if not ids:
+        return "false"
+    return "patient_id in (" + ",".join(sql_literal(x) for x in ids) + ")"
 
 
 def normalize_window(n: int) -> int:
@@ -105,9 +130,10 @@ def _delta(cur, pri, kind):
     return {"value": cur / pri - 1, "fmt": f"{(cur / pri - 1) * 100:+.0f}%"}
 
 
-def build(product: str | None = None, window: int = 1) -> dict:
+def build(product: str | None = None, window: int = 1, cohort_id: str | None = None) -> dict:
     product = resolve_product(product)
     window = normalize_window(window)
+    cohort = compare.get_cohort(cohort_id)
     cov = coverage()
     pri, cur, months = _windows(window)
     lc = _label(cur)
@@ -315,8 +341,9 @@ def build(product: str | None = None, window: int = 1) -> dict:
                     "geography_note": "Regional views need a geography source (HCP address or patient ZIP3).",
                     "data_start": cov["data_start"], "data_end": cov["data_end"],
                     "window": window, "windows": list(WINDOWS), "current": {"spec": cur, "label": lc},
-                    "prior": {"spec": pri, "label": lp} if pri else None},
-        "snapshot": _snapshot(product, window),
+                    "prior": {"spec": pri, "label": lp} if pri else None,
+                    "cohort": _cohort_meta(cohort)},
+        "snapshot": _snapshot(product, window, cohort),
         "market": market, "market_note": "Growth partly reflects claims capture ramping up early in the data window.",
         "brand": brand, "signals": signals, "lenses": lenses,
         "notes": ["Claims capture ramps up in the first months of the data (Jan-Mar), so raw volume and patient growth "
@@ -342,19 +369,20 @@ def _all_brands() -> list[dict]:
             for r in df.itertuples()]
 
 
-def _snapshot(product: str, window: int) -> dict:
-    """Landing tiles: C34 cohort size and C34 patients treated with each IO family (IV + SC)."""
+def _snapshot(product: str, window: int, cohort: dict | None = None) -> dict:
+    """Landing tiles: C34 (or saved-cohort) size and IO-family patients (IV + SC)."""
     families = list(config.IO_BRANDS)
     names = _io_product_names(families)
+    who = _cohort_patient_pred(cohort)
     latest = query("select date_trunc('month', data_end) as mo from ref_data_coverage").mo.iloc[0]
     if window == 1:
         total = int(query(f"""
             select count(distinct patient_id) n from fact_dx_event
-            where {_C34} and date_trunc('month', service_date) = $mo""", {"mo": latest}).n.iloc[0])
+            where {_C34} and ({who}) and date_trunc('month', service_date) = $mo""", {"mo": latest}).n.iloc[0])
         fam = query(f"""
             with nsclc as (
               select distinct patient_id from fact_dx_event
-              where {_C34} and date_trunc('month', service_date) = $mo
+              where {_C34} and ({who}) and date_trunc('month', service_date) = $mo
             )
             select {_IO_FAMILY_SQL} as product, count(distinct d.patient_id) as patients
             from fact_drug_event d
@@ -362,10 +390,10 @@ def _snapshot(product: str, window: int) -> dict:
             where d.product = any($ps) and date_trunc('month', d.service_date) = $mo
             group by 1""", {"ps": names, "mo": latest})
     else:
-        total = int(query(f"select count(distinct patient_id) n from fact_dx_event where {_C34}").n.iloc[0])
+        total = int(query(f"select count(distinct patient_id) n from fact_dx_event where {_C34} and ({who})").n.iloc[0])
         fam = query(f"""
             with nsclc as (
-              select distinct patient_id from fact_dx_event where {_C34}
+              select distinct patient_id from fact_dx_event where {_C34} and ({who})
             )
             select {_IO_FAMILY_SQL} as product, count(distinct d.patient_id) as patients
             from fact_drug_event d
@@ -374,30 +402,33 @@ def _snapshot(product: str, window: int) -> dict:
             group by 1""", {"ps": names})
     by = {r.product: int(r.patients) for r in fam.itertuples()}
     brands = [{"product": p, "patients": by.get(p, 0)} for p in families]
-    mix_chart = _incidence_prevalence_chart() if window == 0 else None
+    mix_chart = _incidence_prevalence_chart(who) if window == 0 else None
+    lot_pack = _nsclc_notebook_lot(cohort.get("id") if cohort else None) if window == 0 else None
     return {"total_patients": total, "brands": brands, "mix_chart": mix_chart,
-            "brand_trend": _brand_month_chart(families) if window == 0 else None,
-            "brand_source": _brand_source_chart(families) if window == 0 else None,
-            "lot_reach_chart": _lot_reach_chart() if window == 0 else None,
-            "lot_regimen_charts": _lot_regimen_charts() if window == 0 else None,
-            "lot_dot_chart": _lot_dot_chart() if window == 0 else None,
-            "lot_molecule_chart": _lot_molecule_chart() if window == 0 else None,
-            "lot_flow_chart": _lot_flow_chart() if window == 0 else None}
+            "brand_trend": _brand_month_chart(families, who) if window == 0 else None,
+            "brand_source": _brand_source_chart(families, who) if window == 0 else None,
+            "lot_reach_chart": _lot_reach_chart(lot_pack) if lot_pack else None,
+            "lot_regimen_charts": _lot_regimen_charts(lot_pack) if lot_pack else None,
+            "lot_dot_chart": _lot_dot_chart(lot_pack) if lot_pack else None,
+            "lot_molecule_chart": _lot_molecule_chart(lot_pack) if lot_pack else None,
+            "lot_flow_chart": _lot_flow_chart(lot_pack) if lot_pack else None}
 
 
-def _c34_lot_sql() -> tuple[str, str]:
-    pred = f"patient_id in (select distinct patient_id from fact_dx_event where {_C34})"
+def _c34_lot_sql(who: str = "true") -> tuple[str, str]:
+    pred = f"patient_id in (select distinct patient_id from fact_dx_event where {_C34} and ({who}))"
     index_sql = (
         f"select patient_id, min(service_date) as index_date "
-        f"from fact_dx_event where {_C34} group by 1"
+        f"from fact_dx_event where {_C34} and ({who}) group by 1"
     )
     return pred, index_sql
 
 
-@lru_cache(maxsize=8)
-def _lot_pack_for_rules(cycle_window_days: int, line_gap_days: int, min_cycles: int, min_days: int) -> dict:
+@lru_cache(maxsize=16)
+def _lot_pack_for_rules(cycle_window_days: int, line_gap_days: int, min_cycles: int, min_days: int,
+                       cohort_id: str = "") -> dict:
     from ciq.tools import cohort_lot
-    pred, index_sql = _c34_lot_sql()
+    who = _cohort_patient_pred(compare.get_cohort(cohort_id or None))
+    pred, index_sql = _c34_lot_sql(who)
     return cohort_lot.for_cohort(pred, index_sql, rules={
         "cycle_window_days": cycle_window_days,
         "line_gap_days": line_gap_days,
@@ -406,11 +437,12 @@ def _lot_pack_for_rules(cycle_window_days: int, line_gap_days: int, min_cycles: 
     })
 
 
-def _nsclc_notebook_lot() -> dict:
-    """Notebook LOT for C34 patients, first C34 as index, default 4d / 90d / 2 / 30."""
+def _nsclc_notebook_lot(cohort_id: str | None = None) -> dict:
+    """Notebook LOT for C34 patients (optionally a saved cohort), first C34 as index."""
     from ciq.tools import cohort_lot
     r = cohort_lot.default_rules()
-    return _lot_pack_for_rules(r["cycle_window_days"], r["line_gap_days"], r["min_cycles"], r["min_days"])
+    return _lot_pack_for_rules(r["cycle_window_days"], r["line_gap_days"], r["min_cycles"], r["min_days"],
+                              cohort_id or "")
 
 
 def playground_defaults() -> dict:
@@ -431,7 +463,6 @@ def playground_lot(rules: dict | None = None) -> dict:
         "lot_regimen_charts": _lot_regimen_charts(pack),
         "lot_dot_chart": _lot_dot_chart(pack),
         "lot_molecule_chart": _lot_molecule_chart(pack),
-        "lot_flow_chart": _lot_flow_chart(pack),
     }
 
 
@@ -448,7 +479,7 @@ def _clean_chart(spec: dict) -> dict:
 def _lot_reach_chart(pack: dict | None = None) -> dict | None:
     """Patients reaching each line of therapy (notebook chart after the three market graphs)."""
     pack = pack if pack is not None else _nsclc_notebook_lot()
-    rows = [r for r in (pack.get("reaching") or []) if int(r["line"]) <= 15]
+    rows = [r for r in (pack.get("reaching") or []) if int(r["line"]) <= 5]
     n = int(pack.get("patients_with_lot") or 0)
     if not rows or n <= 0:
         return None
@@ -532,9 +563,9 @@ def _lot_regimen_charts(pack: dict | None = None) -> list[dict]:
 
 
 def _lot_dot_chart(pack: dict | None = None) -> dict | None:
-    """Mean vs median days on therapy by line (notebook grouped bars, lines 1–10)."""
+    """Mean vs median days on therapy by line (notebook grouped bars, lines 1–5)."""
     pack = pack if pack is not None else _nsclc_notebook_lot()
-    rows = pack.get("days_on_therapy") or []
+    rows = [r for r in (pack.get("days_on_therapy") or []) if int(r["line"]) <= 5]
     if not rows or not any(int(r["n"]) > 0 for r in rows):
         return None
     long = []
@@ -624,7 +655,8 @@ def _lot_molecule_chart(pack: dict | None = None) -> dict | None:
               "axis": {"labelLimit": 180}},
         "yOffset": {"field": "series", "type": "nominal", "sort": series_order},
         "x": {"field": "pct", "type": "quantitative", "title": "% of patients in line",
-              "scale": {"domain": [0, 100]}, "axis": {"tickCount": 6, "values": [0, 20, 40, 60, 80, 100]}},
+              "scale": {"domain": [0, 60]},
+              "axis": {"values": [0, 20, 40, 60], "labelExpr": "datum.value + '%'"}},
         "color": {"field": "series", "type": "nominal", "title": None, "sort": series_order,
                   "scale": {"domain": series_order, "range": series_range[: len(series_order)]},
                   "legend": {"orient": "bottom", "direction": "horizontal"}},
@@ -643,18 +675,38 @@ _TAB20 = [
 ]
 
 
+_FLOW_TOP_N = 8
+
+
+def _collapse_flow_other(rows: list[dict], top_n: int = _FLOW_TOP_N) -> pd.DataFrame:
+    """Keep the top N regimens on each side; lump the rest as Other (notebook Sankey)."""
+    df = pd.DataFrame(rows)
+    left_keep = set(df.groupby("L1")["n"].sum().nlargest(top_n).index)
+    right_keep = set(df.groupby("L2")["n"].sum().nlargest(top_n).index)
+    df["L1"] = df["L1"].where(df["L1"].isin(left_keep), "Other")
+    df["L2"] = df["L2"].where(df["L2"].isin(right_keep), "Other")
+    return df.groupby(["L1", "L2"], as_index=False)["n"].sum()
+
+
 def _lot_flow_chart(pack: dict | None = None) -> dict | None:
-    """1L → 2L alluvial of regimens that contain pembrolizumab, nivolumab or atezolizumab."""
+    """1L → 2L Sankey of IO-involved regimens: top 8 per side, rest as Other."""
     pack = pack if pack is not None else _nsclc_notebook_lot()
     flow = pack.get("l1_l2_flow") or {}
     rows = flow.get("flows") or []
     tot = int(flow.get("n_patients") or 0)
     if not rows or tot <= 0:
         return None
-    f12 = pd.DataFrame(rows)
+    f12 = _collapse_flow_other(rows)
+    tot = int(f12["n"].sum())
+    if tot <= 0:
+        return None
     left = f12.groupby("L1")["n"].sum().sort_values(ascending=False)
     right = f12.groupby("L2")["n"].sum().sort_values(ascending=False)
-    gap, scale = 0.010, 1 - 0.010 * max(len(left), len(right))
+    l_rank = {k: i for i, k in enumerate(left.index)}
+    r_rank = {k: i for i, k in enumerate(right.index)}
+    f12 = f12.assign(_lr=f12["L1"].map(l_rank), _rr=f12["L2"].map(r_rank)).sort_values(["_lr", "_rr"])
+    n_nodes = max(len(left), len(right))
+    gap, scale = 0.012, 1 - 0.012 * n_nodes
     if scale <= 0:
         scale = 0.5
 
@@ -670,8 +722,9 @@ def _lot_flow_chart(pack: dict | None = None) -> dict | None:
     colors = {k: _TAB20[i % 20] for i, k in enumerate(left.index)}
     off_l = {k: v[0] for k, v in l_pos.items()}
     off_r = {k: v[0] for k, v in r_pos.items()}
-    xs = np.linspace(0, 1, 40)
+    xs = np.linspace(0, 1, 48)
     sm = (1 - np.cos(xs * np.pi)) / 2
+    x0, x1, x2, x3 = 0.26, 0.30, 0.82, 0.86
     ribbons = []
     for i, r in enumerate(f12.itertuples()):
         h = float(r.n) / tot * scale
@@ -680,7 +733,7 @@ def _lot_flow_chart(pack: dict | None = None) -> dict | None:
         for x, s in zip(xs, sm):
             ribbons.append({
                 "id": fid, "L1": r.L1, "L2": r.L2, "n": int(r.n),
-                "x": 0.325 + float(x) * 0.35,
+                "x": x1 + float(x) * (x2 - x1),
                 "ylo": y0 + float(s) * (y1 - y0),
                 "yhi": y0 + h + float(s) * (y1 - y0),
             })
@@ -688,28 +741,22 @@ def _lot_flow_chart(pack: dict | None = None) -> dict | None:
         off_r[r.L2] += h
     left_nodes, right_nodes = [], []
     for k, (y, h) in l_pos.items():
-        left_nodes.append({"side": "L1", "regimen": k, "label": f"{k[:60]}  ({int(left[k]):,})",
-                           "x0": 0.30, "x1": 0.325, "y": y, "y2": y + h, "yMid": y + h / 2,
+        left_nodes.append({"side": "L1", "regimen": k, "label": f"{k} ({int(left[k])})",
+                           "x0": x0, "x1": x1, "y": y, "y2": y + h, "yMid": y + h / 2,
                            "color": colors[k], "n": int(left[k])})
     for k, (y, h) in r_pos.items():
-        right_nodes.append({"side": "L2", "regimen": k, "label": f"{k[:60]}  ({int(right[k]):,})",
-                            "x0": 0.675, "x1": 0.70, "y": y, "y2": y + h, "yMid": y + h / 2,
-                            "color": "#999999", "n": int(right[k])})
+        right_nodes.append({"side": "L2", "regimen": k, "label": f"{k} ({int(right[k])})",
+                            "x0": x2, "x1": x3, "y": y, "y2": y + h, "yMid": y + h / 2,
+                            "color": "#7f7f7f", "n": int(right[k])})
     nodes = left_nodes + right_nodes
-    n_nodes = max(len(l_pos), len(r_pos))
-    height = max(520, 32 * n_nodes + 80)
-    side = flow.get("side") or "either"
-    n_tr = int(flow.get("n_transitions") or len(f12))
+    height = max(460, 48 * n_nodes + 40)
     spec = {
         "$schema": charts.SCHEMA,
-        "title": {
-            "text": "1L → 2L flow — regimens containing pembrolizumab, nivolumab or atezolizumab",
-            "subtitle": f"(filter={side}; n={tot:,} patients, {n_tr} transitions)",
-        },
-        "width": "container",
+        "title": {"text": "Patient flow from 1L to 2L", "anchor": "start"},
+        "width": 1100,
         "height": height,
-        "padding": {"left": 8, "right": 8, "top": 4, "bottom": 8},
-        "autosize": {"type": "fit", "contains": "padding"},
+        "padding": {"left": 8, "right": 24, "top": 8, "bottom": 8},
+        "autosize": {"type": "pad"},
         "layer": [
             {
                 "data": {"values": json_safe(ribbons)},
@@ -717,7 +764,7 @@ def _lot_flow_chart(pack: dict | None = None) -> dict | None:
                          "line": False},
                 "encoding": {
                     "x": {"field": "x", "type": "quantitative",
-                          "scale": {"domain": [-0.42, 1.42], "nice": False}, "axis": None},
+                          "scale": {"domain": [-0.42, 1.28], "nice": False}, "axis": None},
                     "y": {"field": "ylo", "type": "quantitative", "stack": None,
                           "scale": {"domain": [-0.02, 1.02], "nice": False}, "axis": None},
                     "y2": {"field": "yhi"},
@@ -768,13 +815,13 @@ def _lot_flow_chart(pack: dict | None = None) -> dict | None:
     return _clean_chart(spec)
 
 
-def _incidence_prevalence_chart() -> dict | None:
+def _incidence_prevalence_chart(who: str = "true") -> dict | None:
     """100% mix of patients new to NSCLC vs already in NSCLC, by month (not the brand picker)."""
-    mix = query("""
+    mix = query(f"""
         with nsclc as (
           select distinct patient_id, date_trunc('month', service_date) as mo
           from fact_dx_event
-          where dx_code like 'C34%'
+          where dx_code like 'C34%' and ({who})
         ),
         first as (
           select patient_id, min(mo) as first_mo from nsclc group by 1
@@ -816,13 +863,13 @@ def _incidence_prevalence_chart() -> dict | None:
     return _clean_chart(spec)
 
 
-def _brand_month_chart(families: list[str]) -> dict:
+def _brand_month_chart(families: list[str], who: str = "true") -> dict:
     """Monthly C34 patients treated with each IO family (IV + SC)."""
     names = _io_product_names(families)
     df = query(f"""
         with nsclc as (
           select distinct patient_id, date_trunc('month', service_date) as mo
-          from fact_dx_event where {_C34}
+          from fact_dx_event where {_C34} and ({who})
         )
         select strftime(n.mo, '%Y-%m') as period, {_IO_FAMILY_SQL} as product,
                count(distinct d.patient_id) as patients
@@ -850,12 +897,12 @@ def _brand_month_chart(families: list[str]) -> dict:
     return _clean_chart(spec)
 
 
-def _brand_source_chart(families: list[str]) -> dict | None:
+def _brand_source_chart(families: list[str], who: str = "true") -> dict | None:
     """Monthly stacked bars: New (first anticancer drug), Continued (last intake was this brand), Switch (in)."""
     sc_forms = [config.IO_BRANDS[b]["sc_form"] for b in families]
     src = query(f"""
         with nsclc as (
-          select distinct patient_id from fact_dx_event where {_C34}
+          select distinct patient_id from fact_dx_event where {_C34} and ({who})
         ),
         rx as (
           select d.patient_id, d.service_date, d.product_form, {_IO_FAMILY_SQL} as family

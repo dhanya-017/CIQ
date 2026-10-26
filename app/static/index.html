@@ -3,11 +3,11 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Chryselys CIQ · Data Intelligence</title>
+  <title>Chryselys LoTrace · Data Intelligence</title>
   <link rel="icon" href="/static/assets/favicon.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Source+Serif+4:opsz,wght@8..60,500;8..60,600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/styles.css?v=pg4">
+  <link rel="stylesheet" href="/static/styles.css?v=pg14">
   <script src="https://cdn.jsdelivr.net/npm/vega@5"></script>
   <script src="https://cdn.jsdelivr.net/npm/vega-lite@5"></script>
   <script src="https://cdn.jsdelivr.net/npm/vega-embed@6"></script>
@@ -21,7 +21,7 @@
       <div class="brand">
         <img src="/static/assets/chryselys-mark.png" alt="Chryselys" class="brand-mark">
         <div class="brand-text">
-          <div class="brand-name">CIQ</div>
+          <div class="brand-name">LoTrace</div>
           <div class="brand-sub">Data Intelligence</div>
         </div>
       </div>
@@ -37,10 +37,6 @@
       <button class="side-item side-new" id="btnNew" type="button" data-tip="Cohort analysis">
         <span class="si-ic"><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M12 7v10M7 12h10" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
         <span class="si-label">Cohort analysis</span>
-      </button>
-      <button class="side-item side-journey" id="btnJourney" type="button" data-tip="Patient Journey">
-        <span class="si-ic"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M5 19a2 2 0 1 0 0-4 2 2 0 0 0 0 4zM19 9a2 2 0 1 0 0-4 2 2 0 0 0 0 4zM7 17h5a3 3 0 0 0 0-6h-1a3 3 0 0 1 0-6h6" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
-        <span class="si-label">Patient Journey</span>
       </button>
       <button class="side-item side-play" id="btnPlayground" type="button" data-tip="Playground Tab">
         <span class="si-ic"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M4 8h6v12H4zM14 4h6v16h-6zM7 8V5M17 4V2" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
@@ -108,7 +104,7 @@
           </button>
           <button type="button" class="src-add" id="srcAdd" title="Connect a data source" aria-label="Connect a data source"><svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
           <div class="src-pop" id="srcPop" role="dialog" aria-label="Data sources" hidden>
-            <div class="sp-head"><span>Data sources</span><span class="sp-sub">What CIQ can analyse</span></div>
+            <div class="sp-head"><span>Data sources</span><span class="sp-sub">What LoTrace can analyse</span></div>
             <div class="sp-group">Connected</div>
             <div class="sp-item connected">
               <span class="sp-logo iqvia">IQ</span>
@@ -136,14 +132,13 @@
       <div class="welcome" id="welcome">
         <div class="cc" id="cc" aria-live="polite"></div>
         <section class="ask-ciq">
-          <h2>Or ask CIQ about <span class="accent" id="heroBrand">your brand</span></h2>
+          <h2>Or ask LoTrace about <span class="accent" id="heroBrand">your brand</span></h2>
           <div class="suggest" id="suggest"></div>
         </section>
       </div>
       <div class="messages" id="messages"></div>
     </section>
 
-    <section class="journey" id="journey" aria-live="polite" hidden></section>
     <section class="journey" id="cohort" aria-live="polite" hidden></section>
     <section class="playground" id="playground" aria-live="polite" hidden></section>
 
@@ -151,9 +146,9 @@
       <div class="followups" id="followups" hidden></div>
       <section class="ask" id="askPanel" role="dialog" aria-labelledby="askQuestion" hidden>
         <div class="ask-head">
-          <span class="ask-badge">Question from CIQ</span>
+          <span class="ask-badge">Question from LoTrace</span>
           <div class="ask-tabs" id="askTabs"></div>
-          <button type="button" class="ask-x" id="askSkip" title="Skip: let CIQ decide">Skip</button>
+          <button type="button" class="ask-x" id="askSkip" title="Skip: let LoTrace decide">Skip</button>
         </div>
         <p class="ask-q" id="askQuestion"></p>
         <div class="ask-opts" id="askOptions" role="listbox"></div>
@@ -211,7 +206,7 @@
       <div class="cm-head-text">
         <span class="cm-kicker">Enterprise connectors <span class="cm-badge">Preview</span></span>
         <h2 id="cmTitle">Connect a data source</h2>
-        <p>Bring payer, promotional/CRM and other commercial data next to IQVIA claims, so CIQ can analyse them together.</p>
+        <p>Bring payer, promotional/CRM and other commercial data next to IQVIA claims, so LoTrace can analyse them together.</p>
       </div>
       <button type="button" class="cm-x" id="cmClose" aria-label="Close"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
       <ol class="cm-steps" id="cmSteps">
@@ -236,9 +231,9 @@
           <aside class="cm-guide">
             <h4>Recommended setup</h4>
             <ul>
-              <li>Use a read-only role or service principal scoped to the tables CIQ needs.</li>
+              <li>Use a read-only role or service principal scoped to the tables LoTrace needs.</li>
               <li>Pick the join key that links the table to IQVIA claims (HCP, payer plan, patient token or product).</li>
-              <li>Prefer tokenised patient ids; CIQ never needs direct identifiers.</li>
+              <li>Prefer tokenised patient ids; LoTrace never needs direct identifiers.</li>
             </ul>
           </aside>
         </div>
@@ -250,9 +245,9 @@
     </div>
   </div>
 </div>
-<script src="/static/app.js?v=pg5"></script>
-<script src="/static/journey.js?v=pg1"></script>
-<script src="/static/cohort.js?v=cb-ask7"></script>
-<script src="/static/playground.js?v=pg6"></script>
+<script src="/static/app.js?v=pg13"></script>
+<script src="/static/journey.js?v=pg9"></script>
+<script src="/static/cohort.js?v=cb-ask13"></script>
+<script src="/static/playground.js?v=pg11"></script>
 </body>
 </html>

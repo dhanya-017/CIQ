@@ -1,4 +1,4 @@
-"""Agent loop: Claude on Amazon Bedrock + CIQ analytics tools, streamed as UI events.
+"""Agent loop: Claude on Amazon Bedrock + LoTrace analytics tools, streamed as UI events.
 
 Events yielded (dicts, sent to the browser as SSE):
   {"type": "status", "text"}                      - progress line
@@ -43,7 +43,7 @@ TOOL_LABELS = {
 
 def _system_prompt() -> str:
     cov = coverage()
-    return f"""You are CIQ, the brand and patient analytics assistant inside Chryselys' data intelligence platform.
+    return f"""You are LoTrace, the brand and patient analytics assistant inside Chryselys' data intelligence platform.
 You answer commercial pharma questions for brand, insights and analytics teams by calling analytics tools over
 claims data, then explaining what the numbers mean for the brand.
 
@@ -72,8 +72,7 @@ claims data, then explaining what the numbers mean for the brand.
   ops. Say plainly when an edit changes the numbers versus the standard pathway. If the user asks for a code you
   are unsure of, ask (ask_user) rather than guess.
   Structure journey answers as: Answer (one or two sentences) -> Evidence (the numbers) -> Journey (where in the
-  pathway it happens) -> Cohort (the patient group worth acting on, which the user can save from the Patient
-  Journey view).
+  pathway it happens) -> Cohort (the patient group worth acting on).
 - When asked why two sides differ, work from the comparison's drivers (HCP deciles, payer and treatment mix, HCP
   movement), dig deeper with other tools or run_sql if needed, and answer: what is different, where it is
   concentrated, the most likely observable drivers, and what the brand team could do about it. Separate what the
@@ -179,7 +178,7 @@ def _discard(block, history: list[dict]) -> tuple[dict, dict]:
         err = f"no result with id '{rid}' in this conversation. Recent results: {known}"
         return ({"type": "tool_result", "tool_use_id": block.id, "is_error": True, "content": err},
                 {"type": "tool_result", "id": block.id, "name": block.name, "ok": False, "error": err})
-    target["withdrawn"] = {"reason": reason or "Withdrawn by CIQ.", "by": block.id}
+    target["withdrawn"] = {"reason": reason or "Withdrawn by LoTrace.", "by": block.id}
     ok = f"Withdrawn: '{target.get('title')}' ({rid}). The user sees it collapsed with your reason."
     return ({"type": "tool_result", "tool_use_id": block.id, "content": ok},
             {"type": "withdraw", "id": block.id, "target": rid, "reason": target["withdrawn"]["reason"],

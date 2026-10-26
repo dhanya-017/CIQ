@@ -48,6 +48,13 @@ def list_cohorts() -> list[dict]:
     return json.loads(f.read_text(encoding="utf-8")) if f.exists() else []
 
 
+def get_cohort(cohort_id: str | None) -> dict | None:
+    if not cohort_id:
+        return None
+    cid = str(cohort_id)
+    return next((c for c in list_cohorts() if str(c.get("id")) == cid), None)
+
+
 def save_cohort(name: str, hcp_ids: list[str] | None, definition: str, product: str | None = None,
                 patient_ids: list[str] | None = None) -> dict:
     """Save an HCP cohort (hcp_ids) or a patient cohort (patient_ids, e.g. from a patient journey pattern)."""

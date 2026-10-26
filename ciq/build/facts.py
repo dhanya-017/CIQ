@@ -90,7 +90,7 @@ def run(ctx) -> None:
     log("Building fact_px_event")
     con.execute("""
         create table fact_px_event as
-        select patient_id, service_date, code as px_code, code_system,
+        select patient_id, service_date, code as px_code, code as procedure_code, code_system,
                any_value(code_short_desc) as px_desc,
                any_value(claim_type) as claim_type,
                arg_min(coalesce(provider_rendering_id, provider_billing_id), source_line_id) as hcp_id,

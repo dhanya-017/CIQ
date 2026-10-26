@@ -144,5 +144,15 @@ def test_data_stack_parquet_builds_end_to_end(isolated):
     assert sources.get("MX_PX")
     assert sources.get("MX_RX")
     assert sources.get("RX")
+    split = con.execute("""
+        select source, ndc_cd, procedure_code from src_master_nsclc
+        where claim_id = 'c2' order by source
+    """).fetchall()
+    by_src = {r[0]: (r[1], r[2]) for r in split}
+    assert by_src["MX_PX"][0] is None and by_src["MX_PX"][1] == "J9045"
+    assert by_src["MX_RX"][1] is None and by_src["MX_RX"][0] == "00006302601"
+    px = con.execute("select distinct procedure_code from fact_px_event").fetchall()
+    assert "J9045" in {r[0] for r in px}
+    assert con.execute("select count(*) from fact_px_event where procedure_code is null").fetchone()[0] == 0
     cov = con.execute("select data_start, data_end from ref_data_coverage").fetchone()
     assert str(cov[0]) == "2022-03-01"

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Start CIQ Data Intelligence (backend + UI) at http://localhost:8000
+# Start LoTrace Data Intelligence (backend + UI) at http://localhost:8000
 #
 # All a new user needs:  1) put master_nsclc.csv in Data/real_data/   2) run ./run.sh
 # First run: creates .venv, installs packages and creates .env (one-time, a few minutes).
@@ -35,5 +35,5 @@ if ! $PY -m ciq.build.build_warehouse --if-changed; then
 fi
 EXTRA=()
 [ "${1:-}" = "--reload" ] && EXTRA=(--reload --reload-dir app --reload-dir ciq)
-echo "Starting CIQ at http://localhost:${PORT:-8000}"
+echo "Starting LoTrace at http://localhost:${PORT:-8000}"
 exec $PY -m uvicorn app.server:app --host 127.0.0.1 --port "${PORT:-8000}" ${EXTRA[@]+"${EXTRA[@]}"}

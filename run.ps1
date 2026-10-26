@@ -1,4 +1,4 @@
-# Start CIQ Data Intelligence (backend + UI) at http://localhost:8000
+# Start LoTrace Data Intelligence (backend + UI) at http://localhost:8000
 #
 # All a new user needs:  1) put master_nsclc.csv in Data\real_data\   2) run .\run.ps1
 # First run: creates .venv, installs packages and creates .env (one-time, a few minutes).
@@ -40,5 +40,5 @@ if ($LASTEXITCODE -ne 0) {
     }
 }
 $extra = if ($Reload) { @("--reload", "--reload-dir", "app", "--reload-dir", "ciq") } else { @() }
-Write-Host "Starting CIQ at http://localhost:$Port" -ForegroundColor Green
+Write-Host "Starting LoTrace at http://localhost:$Port" -ForegroundColor Green
 & $py -m uvicorn app.server:app --host 127.0.0.1 --port $Port @extra

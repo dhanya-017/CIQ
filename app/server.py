@@ -1,4 +1,4 @@
-"""CIQ Data Intelligence - FastAPI backend serving the API and the web UI.
+"""LoTrace Data Intelligence - FastAPI backend serving the API and the web UI.
 
 Run:  python -m uvicorn app.server:app --port 8000     then open http://localhost:8000
 """
@@ -19,14 +19,14 @@ from starlette.concurrency import run_in_threadpool
 from app import pins, settings, store
 from app.agent import Agent, add_panel_result, rewind_last_exchange
 from ciq.tools import command_center as cc
-from ciq.tools import compare, journey
+from ciq.tools import compare
 from ciq.tools import cohort_builder as cbuild
 from ciq import methodology
 from ciq import config as ciq_config
 from ciq.tools.base import coverage, json_safe, query, resolve_product, sql_literal
 from ciq.tools.registry import TOOLS, run_tool
 
-app = FastAPI(title="CIQ Data Intelligence")
+app = FastAPI(title="LoTrace Data Intelligence")
 _agent: Agent | None = None
 
 
@@ -211,9 +211,9 @@ async def chat(req: ChatRequest):
 
 
 @app.get("/api/command-center")
-async def command_center(product: str | None = None, window: int = 1):
+async def command_center(product: str | None = None, window: int = 1, cohort: str | None = None):
     try:
-        return await run_in_threadpool(cc.build, product, cc.normalize_window(window))
+        return await run_in_threadpool(cc.build, product, cc.normalize_window(window), cohort)
     except ValueError as e:
         raise HTTPException(400, str(e))
 
@@ -323,14 +323,6 @@ async def codes_suggest(system: str = "ICD", q: str = "", limit: int = 20):
 @app.get("/api/codes/search")
 async def codes_search(q: str = "", system: str | None = None, limit: int = 25):
     hits = await run_in_threadpool(cbuild.search_codes, q, system, limit)
-    if len(hits) < 8 and (q or "").strip() and not any(ch.isdigit() for ch in q):
-        extra = await _bedrock_code_hints(q)
-        seen = {(h["system"], h["code"]) for h in hits}
-        for h in extra:
-            key = (h["system"], h["code"])
-            if key not in seen:
-                hits.append(h)
-                seen.add(key)
     return json_safe(hits[:limit])
 
 
@@ -398,60 +390,6 @@ async def create_cohort_from_tree(req: CohortTreeRequest):
     return {k: v for k, v in c.items() if k not in ("hcp_ids", "patient_ids")} | {"size": compare.cohort_size(c)}
 
 
-# ---------------------------------------------------------------------------- patient journey
-async def _journey(fn, *args):
-    try:
-        return await run_in_threadpool(fn, *args)
-    except ValueError as e:
-        raise HTTPException(400, str(e))
-
-
-@app.get("/api/journey")
-async def journey_overview(product: str | None = None, scope: str = "market"):
-    d = await _journey(journey.overview, product, scope)
-    d["method"] = methodology.describe("patient_journey", {"product": d["context"]["product"], "scope": scope})
-    d["meta"] = {"coverage": coverage()}
-    d["caveats"] = [f"{s}: {t}" for s, t in journey.STATUS_DEF.items()]
-    return d
-
-
-@app.get("/api/journey/pathway")
-async def journey_pathway(scope: str = "market", product: str | None = None):
-    from ciq.tools import pathway
-
-    def build():
-        pw = pathway.standard()
-        if scope == "brand":
-            pw["filter"] = f"brand:{resolve_product(product)}"
-        return {"type": "pathway", **pathway.compute(pw), "custom": False, "rules": pw["rules"]}
-    return json_safe(await _journey(build))
-
-
-@app.get("/api/journey/transition")
-async def journey_transition(a: str, b: str, product: str | None = None, scope: str = "market"):
-    return await _journey(journey.transition, a, b, product, scope)
-
-
-@app.get("/api/journey/patients")
-async def journey_patients(filter: str = "all", scope: str = "market", product: str | None = None):
-    return await _journey(journey.patients, filter, 300, scope, product)
-
-
-@app.get("/api/journey/patient/{pid}")
-async def journey_patient(pid: str):
-    return await _journey(journey.patient, pid)
-
-
-@app.get("/api/journey/segments")
-async def journey_segments(product: str | None = None):
-    return await _journey(lambda: journey.segment_options(resolve_product(product)))
-
-
-@app.get("/api/journey/compare")
-async def journey_compare(a: str, b: str, product: str | None = None):
-    return await _journey(journey.compare_journeys, a, b, product)
-
-
 def _sse(ev: dict) -> str:
     return f"data: {json.dumps(json_safe(ev), default=str)}\n\n"
 
@@ -508,36 +446,6 @@ async def call_tool(name: str, args: dict | None = None):
     except (KeyError, ValueError, TypeError) as e:
         raise HTTPException(400, str(e))
     return await run_in_threadpool(res.to_dict)
-
-
-async def _bedrock_code_hints(q: str) -> list[dict]:
-    """Optional disease→code hints from Bedrock, kept only if they exist in the warehouse."""
-    try:
-        from anthropic import AsyncAnthropicBedrock
-        client = AsyncAnthropicBedrock(aws_region=settings.AWS_REGION)
-        msg = await asyncio.wait_for(client.messages.create(
-            model=settings.MODEL_ID, max_tokens=400,
-            messages=[{"role": "user", "content":
-                       "List ICD-10-CM, CPT/HCPCS or NDC/brand codes for: " + q +
-                       '. Return JSON only: [{"system":"ICD"|"CPT"|"NDC","code":"..."}] max 12.'}],
-        ), timeout=8)
-        text = "".join(getattr(b, "text", "") or "" for b in msg.content)
-        start, end = text.find("["), text.rfind("]")
-        raw = json.loads(text[start:end + 1]) if start >= 0 and end > start else []
-    except Exception:
-        return []
-    out, seen = [], set()
-    for item in raw[:12]:
-        sys = str(item.get("system", "ICD")).upper()
-        code = str(item.get("code", "")).strip()
-        if sys not in cbuild.SYSTEMS or not code:
-            continue
-        for h in cbuild.suggest_codes(sys, code, limit=3):
-            key = (h["system"], h["code"])
-            if key not in seen:
-                out.append(h)
-                seen.add(key)
-    return out
 
 
 async def _bedrock_cohort_tree(q: str) -> dict | None:

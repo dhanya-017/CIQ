@@ -53,7 +53,7 @@ CODE_DESC = {
 
 
 def standard() -> dict:
-    """The reference pathway used throughout the Patient Journey view."""
+    """The reference pathway used by pathway diagrams and journey analytics."""
     s = lambda k, codes, window: {"key": k, "label": J.LABEL[k], "codes": codes, "window": window}
     px = lambda xs: [f"px:{c}" for c in xs]
     return {"name": "Standard NSCLC pathway", "filter": "all",
@@ -438,7 +438,7 @@ def pathway_diagram(source: str | None = None, ops: list[dict] | None = None, ti
               kpi("Largest drop-off", worst["not_reached"], lead=True, note=worst["label"])],
         insights=ins, observations=ins,
         caveats=["Stages are what the claims show; care billed elsewhere looks missing.",
-                 *([f"Custom pathway: numbers differ from the standard Patient Journey view ({'; '.join(dif)})."]
+                 *([f"Custom pathway: numbers differ from the standard pathway ({'; '.join(dif)})."]
                    if custom else [])],
         meta={"pathway": pw, "changes": all_changes, "view": view, "visual": visual,
               "chart_summary": f"Pathway now: {summary}. Rules: {pw['rules']}. Cohort: {d['cohort']}."

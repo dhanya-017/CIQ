@@ -1,13 +1,21 @@
-/* CIQ - Patient Cohort Builder: nested AND/OR/SEQUENTIAL groups of ICD / CPT / NDC. */
+/* LoTrace - Patient Cohort Builder: nested AND/OR/SEQUENTIAL groups of ICD / CPT / NDC. */
 "use strict";
 
 const CB = {
-  token: 0, tree: null, preview: null, searchSys: null, searchHits: [],
+  token: 0, searchToken: 0, tree: null, preview: null, searchSys: null, searchHits: [],
   saved: [], focus: null, suggestTimer: 0, previewTimer: 0, chat: [], asking: false,
   studyPeriod: { from: "", to: "" },
   periodMode: "",
 };
 
+
+const jq = (s) => encodeURIComponent(s);
+async function jget(url) {
+  const r = await fetch(url);
+  const d = await r.json();
+  if (!r.ok) throw new Error(d.detail || r.statusText);
+  return d;
+}
 
 const CB_SYS = [["ICD", "ICD-10"], ["CPT", "CPT"], ["NDC", "NDC"]];
 const CB_WIN = [
@@ -53,7 +61,7 @@ function cbBindRemove(btn, fn) {
 }
 function cbPlaceholder(system, hasCodes) {
   if (system === "ICD") return hasCodes ? "Add another ICD-10 code" : "Type an ICD-10 code";
-  if (system === "NDC") return hasCodes ? "Add another brand or NDC" : "Type a brand or NDC, e.g. Keytruda";
+  if (system === "NDC") return hasCodes ? "Add another NDC" : "Type a drug name or NDC, e.g. Keytruda";
   return hasCodes ? "Add another code" : "Type a CPT/HCPCS code";
 }
 function cbCodes(node) {
@@ -147,13 +155,49 @@ function cbPaintSearch() {
   const hits = el("div", "cb-hits");
   hits.id = "cbHits";
   if (!CB.searchHits.length) {
-    hits.appendChild(el("p", "jn-note", "Search a disease, problem or code. Suggestions come from this claims warehouse, then Bedrock when it is available."));
+    hits.appendChild(el("p", "jn-note", "Search a disease, problem or code, then click a result to add it to the cohort."));
   } else {
-    for (const h of CB.searchHits) hits.appendChild(cbHitRow(h, true));
+    cbFillHits(hits, CB.searchHits);
   }
   side.replaceChildren(el("h2", "cb-side-title", "Code search"), box, chips, hits);
   input.value = side.dataset.q || "";
   if (input.value) input.focus();
+}
+
+function cbDrugName(h) {
+  if (!h || h.system !== "NDC") return "";
+  const lab = String(h.label || "").trim();
+  if (!lab || lab.toUpperCase() === String(h.code || "").toUpperCase()) return "";
+  return lab.split("·")[0].trim();
+}
+
+function cbNdcGroups(hits) {
+  const groups = [];
+  const by = new Map();
+  for (const h of hits) {
+    const name = cbDrugName(h);
+    if (!name) continue;
+    const key = name.toLowerCase();
+    let g = by.get(key);
+    if (!g) {
+      g = { name, hits: [] };
+      by.set(key, g);
+      groups.push(g);
+    }
+    g.hits.push(h);
+  }
+  return groups.filter((g) => g.hits.length > 1);
+}
+
+function cbFillHits(box, hits) {
+  box.replaceChildren();
+  for (const g of cbNdcGroups(hits)) {
+    const b = el("button", "cb-hit-all", `Add all ${g.name} NDCs (${g.hits.length})`);
+    b.type = "button";
+    b.addEventListener("click", () => cbAddNdcGroup(g.hits));
+    box.appendChild(b);
+  }
+  for (const h of hits) box.appendChild(cbHitRow(h, true));
 }
 
 function cbHitRow(h, addable) {
@@ -170,21 +214,33 @@ async function cbRunSearch(q) {
   const side = $("#cbSearch");
   if (side) side.dataset.q = q;
   const hits = $("#cbHits");
+  const token = ++CB.searchToken;
   if (!(q || "").trim()) {
     CB.searchHits = [];
-    if (hits) hits.replaceChildren(el("p", "jn-note", "Search a disease, problem or code. Suggestions come from this claims warehouse, then Bedrock when it is available."));
+    if (hits) hits.replaceChildren(el("p", "jn-note", "Search a disease, problem or code, then click a result to add it to the cohort."));
     return;
   }
+  let err = "";
   try {
     const sys = CB.searchSys ? `&system=${CB.searchSys}` : "";
-    CB.searchHits = await jget(`/api/codes/search?q=${jq(q)}${sys}`);
+    const found = await jget(`/api/codes/search?q=${jq(q)}${sys}`);
+    if (token !== CB.searchToken) return;
+    CB.searchHits = Array.isArray(found) ? found : [];
   } catch (e) {
+    if (token !== CB.searchToken) return;
     CB.searchHits = [];
+    err = e.message || String(e);
   }
   if (!hits) return;
-  hits.replaceChildren();
-  if (!CB.searchHits.length) hits.appendChild(el("p", "jn-note", "No matching codes in this warehouse."));
-  else for (const h of CB.searchHits) hits.appendChild(cbHitRow(h, true));
+  if (err) {
+    hits.replaceChildren(el("p", "jn-note", "Code search failed: " + err));
+    return;
+  }
+  if (!CB.searchHits.length) {
+    hits.replaceChildren(el("p", "jn-note", "No matching codes in this warehouse."));
+    return;
+  }
+  cbFillHits(hits, CB.searchHits);
 }
 
 function cbNewRoot() {
@@ -233,7 +289,13 @@ function cbInsertCrit(parent, crit) {
   else parent.children.splice(i, 0, crit);
 }
 
-function cbAddFromSearch(h) {
+function cbPlaceSearchHit(h) {
+  if (!cbFocusGroup()) {
+    CB.tree = cbNewRoot();
+    const g0 = cbNewGroup();
+    CB.tree.children = [g0];
+    CB.focus = g0;
+  }
   const g = cbFocusGroup();
   if (!g || g.kind !== "group") return;
   const empty = g.children.find((c) => c.kind === "criterion" && !cbHasCodes(c));
@@ -248,6 +310,16 @@ function cbAddFromSearch(h) {
     cbAddCode(n, h.code, h.label);
     cbInsertCrit(g, n);
   }
+}
+
+function cbAddFromSearch(h) {
+  cbPlaceSearchHit(h);
+  cbPaintEditor();
+  cbRefreshPreview();
+}
+
+function cbAddNdcGroup(list) {
+  for (const h of list) cbPlaceSearchHit(h);
   cbPaintEditor();
   cbRefreshPreview();
 }
@@ -347,9 +419,7 @@ function cbPaintAsk() {
   const box = $("#cbAsk");
   if (!box) return;
   const head = el("header", "cb-ask-head");
-  head.append(
-    el("h2", null, "Ask in plain English"),
-    el("span", null, "This extract. First qualifying ICD in From-To, then optional NDC/CPT on or after that date"));
+  head.append(el("h2", null, "Ask in plain English"));
   const thread = el("div", "cb-ask-thread");
   if (!CB.chat.length) {
     thread.appendChild(el("p", "cb-ask-empty", "Try “How many patients have ICD C78?” or “C34 followed by C78 within 90 days”"));
@@ -849,27 +919,6 @@ async function cbRefreshPreview() {
   }
   if (token !== CB.token) return;
   cbPaintPreview();
-  if (!CB.preview.size) return;
-  CB.preview.lotLoading = true;
-  cbPaintPreview();
-  try {
-    const lotPack = await fetch("/api/cohorts/lot", {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body,
-    }).then(async (r) => {
-      const d = await r.json();
-      if (!r.ok) throw new Error(d.detail || r.statusText);
-      return d;
-    });
-    if (token !== CB.token) return;
-    CB.preview.lot = lotPack.lot;
-    CB.preview.lotLoading = false;
-  } catch (e) {
-    if (token !== CB.token) return;
-    CB.preview.lotLoading = false;
-    CB.preview.lot = { error: e.message || String(e), patients_with_lot: 0 };
-  }
-  cbPaintPreview();
 }
 
 function cbPaintPreview() {
@@ -910,51 +959,12 @@ function cbPaintPreview() {
     save.textContent = "Saved";
     setTimeout(() => { save.textContent = "Save cohort"; }, 1600);
   });
-  const bits = [head, n];
-  if (p.lotLoading) bits.push(cbPaintLot({ loading: true }));
-  else if (p.lot) bits.push(cbPaintLot(p.lot));
-  bits.push(form);
-  box.replaceChildren(...bits);
-}
-
-function cbPaintLot(lot) {
-  const wrap = el("div", "cb-lot");
-  wrap.appendChild(el("h3", null, "Lines of therapy after index"));
-  if (lot.loading) {
-    wrap.appendChild(el("p", "cb-lot-note", "Calculating lines from mapped drugs after the index date…"));
-    return wrap;
-  }
-  if (lot.error) {
-    wrap.appendChild(el("p", "cb-lot-note", "Could not calculate lines: " + lot.error));
-    return wrap;
-  }
-  const rules = lot.rules || {};
-  wrap.appendChild(el("p", "cb-lot-note",
-    `Mapped drugs only · new cycle if gap > ${rules.cycle_window_days || 4}d · new line if gap > ${rules.line_gap_days || 90}d, or a new agent after ≥${rules.min_cycles || 2} cycles and ≥${rules.min_days || 30} days.`));
-  wrap.appendChild(el("p", "cb-lot-note",
-    `${fmtInt(lot.patients_with_lot || 0)} of ${fmtInt(lot.patients || 0)} patients have a mapped drug on or after the index date. Lines use all of those treatments, not only the NDC/CPT filter.`));
-  if (lot.lines && lot.lines.length) {
-    const ul = el("ul", "cb-lot-lines");
-    for (const row of lot.lines) {
-      ul.appendChild(el("li", null, `Line ${row.line}: ${fmtInt(row.patients)} patients`));
-    }
-    wrap.appendChild(ul);
-  }
-  if (lot.top_regimens && lot.top_regimens.length) {
-    wrap.appendChild(el("h4", null, "Most common first-line regimens"));
-    const ul = el("ul", "cb-lot-reg");
-    for (const row of lot.top_regimens) {
-      ul.appendChild(el("li", null, `${row.regimen} · ${fmtInt(row.patients)}`));
-    }
-    wrap.appendChild(ul);
-  }
-  return wrap;
+  box.replaceChildren(head, n, form);
 }
 
 async function cbLoadSaved() {
   try {
-    const pack = await jget(`/api/cohorts/options?kind=patient&product=${jq(state.product || "")}`);
-    CB.saved = pack.saved || [];
+    CB.saved = await jget("/api/cohorts");
   } catch (e) { CB.saved = []; }
   cbPaintSaved();
 }
@@ -967,7 +977,7 @@ function cbPaintSaved() {
   head.append(el("h2", null, "Saved cohorts"), el("span", null, saved.length ? `${saved.length} saved` : "None yet"));
   box.replaceChildren(head);
   if (!saved.length) {
-    box.appendChild(el("p", "jn-note", "Saved cohorts appear in Journey compare and the Compare panel."));
+    box.appendChild(el("p", "jn-note", "Saved cohorts appear in the Compare panel."));
     return;
   }
   const ul = el("ul", "cb-saved");

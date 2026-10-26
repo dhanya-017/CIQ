@@ -115,7 +115,7 @@ def check_bedrock() -> None:
 def main() -> None:
     skip_bedrock = "--skip-bedrock" in sys.argv
     from ciq import config
-    print(f"CIQ environment check ({ROOT}) - input: {config.INPUT_PATH}\n")
+    print(f"LoTrace environment check ({ROOT}) - input: {config.INPUT_PATH}\n")
     check_python()
     if check_packages():
         check_master()

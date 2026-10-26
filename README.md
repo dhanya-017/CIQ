@@ -1,4 +1,4 @@
-# CIQ Platform — Data & Tool Layer
+# LoTrace Platform — Data & Tool Layer
 
 Data layer for an agentic brand and patient analytics platform built on the claims data in
 `Data/` (medical claims (MX) and pharmacy claims (RX), lung cancer / NSCLC market, ~10,000 patients).
@@ -28,6 +28,7 @@ ciq/tools/registry.py   ── Claude tool-use schemas + run_tool() dispatcher
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Tech stack, build pipeline, warehouse, tools, agent, API, UI, configuration, security |
 | [docs/DATA_DICTIONARY.md](docs/DATA_DICTIONARY.md) | Input files and every warehouse table and column |
 | [docs/DEVELOPER.md](docs/DEVELOPER.md) | Setup and how-to: add a drug or analysis, change rules, test, debug |
+| [docs/COHORT_BUILDER.md](docs/COHORT_BUILDER.md) | Patient Cohort Builder: codes, index date, lines of therapy, API |
 
 ## Getting started (new developers)
 

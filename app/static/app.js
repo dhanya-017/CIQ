@@ -1,4 +1,4 @@
-/* CIQ Data Intelligence - frontend (no build step). */
+/* LoTrace Data Intelligence - frontend (no build step). */
 "use strict";
 
 const $ = (sel, el = document) => el.querySelector(sel);
@@ -89,7 +89,6 @@ async function init() {
   }
   loadHistory();
   const params = new URLSearchParams(location.search);
-  if (params.get("view") === "journey") { showView("journey"); return; }
   renderWelcome();
   if (params.get("c")) openConversation(params.get("c"));
 }
@@ -144,7 +143,7 @@ function bindUI() {
   $("#productSelect").addEventListener("change", (e) => {
     state.product = e.target.value;
     localStorage.setItem("ciq.product", state.product);
-    if (!state.convId && state.view !== "journey" && state.view !== "cohort" && state.view !== "playground") renderWelcome();
+    if (!state.convId && state.view !== "cohort" && state.view !== "playground") renderWelcome();
   });
 }
 
@@ -343,19 +342,24 @@ async function renderCommandCenter() {
   const token = ++ccToken;
   root.classList.add("loading");
   if (!root.firstChild) root.appendChild(ccSkeleton());
+  let saved = [];
+  try { saved = await (await fetch("/api/cohorts")).json(); } catch (e) { saved = []; }
+  if (!Array.isArray(saved)) saved = [];
+  const ids = saved.map((x) => x.id);
+  if (ccCohort && !ids.includes(ccCohort)) ccCohort = ids[0] || "";
   let d;
   try {
-    const r = await fetch(`/api/command-center?product=${encodeURIComponent(state.product)}&window=${ccWindow}`);
+    const q = `/api/command-center?product=${encodeURIComponent(state.product)}&window=${ccWindow}`
+      + (ccCohort ? `&cohort=${encodeURIComponent(ccCohort)}` : "");
+    const r = await fetch(q);
     d = await r.json();
     if (!r.ok) throw new Error(d.detail || r.statusText);
   } catch (e) {
     root.replaceChildren(el("div", "error-box", "Could not load the Command Center: " + (e.message || e)));
     return;
   }
-  if (token !== ccToken) return;   // a newer render started (brand/window changed)
+  if (token !== ccToken) return;   // a newer render started (brand/window/cohort changed)
   root.classList.remove("loading");
-  let saved = [];
-  try { saved = await (await fetch("/api/cohorts")).json(); } catch (e) { saved = []; }
   await loadPins();
   if (token !== ccToken) return;
   root.replaceChildren(ccContext(d, saved), ccHeadline(d), ccSnapshot(d), /* ccLenses(d), */ ccNotes(d), ccPinned());
@@ -511,9 +515,9 @@ function ccContext(d, saved) {
     value: x.id,
     label: `${x.name}${x.size != null ? ` · ${Number(x.size).toLocaleString()}` : ""}`,
   }));
-  const cohortOpts = cohorts.length ? cohorts : [{ value: "", label: "No saved cohorts yet", disabled: true }];
-  if (ccCohort && !cohorts.some((o) => o.value === ccCohort)) ccCohort = cohorts[0] ? cohorts[0].value : "";
-  const cohortVal = cohorts.some((o) => o.value === ccCohort) ? ccCohort : (cohorts[0] ? cohorts[0].value : "");
+  const cohortOpts = [{ value: "", label: "All NSCLC (C34)" }, ...cohorts];
+  if (ccCohort && !cohorts.some((o) => o.value === ccCohort)) ccCohort = "";
+  const cohortVal = cohorts.some((o) => o.value === ccCohort) ? ccCohort : "";
   const periodOpts = (c.windows || []).map((w) => ({
     value: String(w),
     label: w === 0 ? "All months" : "Latest month",
@@ -522,6 +526,7 @@ function ccContext(d, saved) {
     ccSelect("Saved cohorts", cohortOpts, cohortVal, (v) => {
       ccCohort = v;
       try { localStorage.setItem("ciq.ccCohort", v); } catch (e) { /* storage blocked */ }
+      renderCommandCenter();
     }),
     ccSelect("Period", periodOpts, String(c.window), (v) => {
       ccWindow = Number(v);
@@ -537,7 +542,8 @@ function ccHeadline(d) {
   const c = d.context || {};
   const h = el("div", "cc-headline");
   const t = el("h1", "cc-title");
-  t.append(el("span", null, "NSCLC"), el("i", null, "·"),
+  const cohortName = (c.cohort && c.cohort.name) || "NSCLC";
+  t.append(el("span", null, cohortName), el("i", null, "·"),
     el("span", null, (c.current && c.current.label) || ""));
   h.append(t);
   return h;
@@ -547,12 +553,15 @@ function ccSnapshot(d) {
   const s = d.snapshot || {};
   const wrap = el("div", "cc-snap");
   const latest = (d.context && d.context.window) === 1;
+  const cohortName = (d.context && d.context.cohort && d.context.cohort.name) || "";
   const total = el("article", "cc-tile cc-snap-total lead");
   total.append(el("span", "cc-tile-val", fmtInt(s.total_patients)),
     el("span", "cc-tile-lab", "Total patients"),
-    el("span", "cc-tile-note", latest
-      ? "Patients with a C34 lung-cancer diagnosis in the latest month"
-      : "Patients with a C34 lung-cancer diagnosis"));
+    el("span", "cc-tile-note", cohortName
+      ? (latest ? `${cohortName} with a C34 diagnosis in the latest month` : `Patients in ${cohortName}`)
+      : (latest
+        ? "Patients with a C34 lung-cancer diagnosis in the latest month"
+        : "Patients with a C34 lung-cancer diagnosis")));
   wrap.appendChild(total);
   if (s.mix_chart) {
     const chartBox = el("section", "cc-snap-chart");
@@ -566,9 +575,12 @@ function ccSnapshot(d) {
     const card = el("article", "cc-tile");
     card.append(el("span", "cc-tile-lab", b.product),
       el("span", "cc-tile-val", fmtInt(b.patients)),
-      el("span", "cc-tile-note", latest
-        ? "C34 patients with a claim for this brand in the latest month"
-        : "C34 patients treated with this brand"));
+      el("span", "cc-tile-note", cohortName
+        ? (latest ? `${cohortName} with a claim for this brand in the latest month`
+          : `${cohortName} treated with this brand`)
+        : (latest
+          ? "C34 patients with a claim for this brand in the latest month"
+          : "C34 patients treated with this brand")));
     brands.appendChild(card);
   }
   wrap.appendChild(brands);
@@ -656,7 +668,7 @@ function ccLenses(d) {
       requestAnimationFrame(() => embed(c, spec));
     }
     const asks = el("div", "cc-lens-asks");
-    asks.appendChild(el("span", null, "Ask CIQ"));
+    asks.appendChild(el("span", null, "Ask LoTrace"));
     for (const text of L.questions) {
       const b = el("button", "fu", text);
       b.type = "button";
@@ -930,7 +942,7 @@ function renderHistory() {
   const q = $("#historySearch").value.trim().toLowerCase();
   const shown = q ? items.filter((c) => `${c.title} ${c.product || ""}`.toLowerCase().includes(q)) : items;
   ul.replaceChildren();
-  if (!items.length) { ul.appendChild(el("li", "empty", "No analyses yet")); return; }
+  if (!items.length) { ul.appendChild(el("li", "empty", "No analysis yet")); return; }
   if (!shown.length) { ul.appendChild(el("li", "empty", "No matches")); return; }
   for (const c of shown) {
     const li = el("li");
@@ -959,7 +971,7 @@ function renderHistory() {
 
 function newConversation() {
   if (state.busy) state.controller?.abort();
-  if (state.view === "journey" || state.view === "cohort" || state.view === "playground") showView("chat");
+  if (state.view === "cohort" || state.view === "playground") showView("chat");
   state.convId = null;
   history.replaceState(null, "", "/");
   $("#messages").replaceChildren();
@@ -978,7 +990,7 @@ async function openConversation(id) {
   const res = await fetch(`/api/conversations/${id}`);
   if (!res.ok) return;
   const conv = await res.json();
-  if (state.view === "journey" || state.view === "cohort" || state.view === "playground") showView("chat");
+  if (state.view === "cohort" || state.view === "playground") showView("chat");
   state.convId = conv.id;
   history.replaceState(null, "", `/?c=${conv.id}`);
   $("#convTitle").textContent = conv.title;
@@ -1145,7 +1157,7 @@ function createAssistantMsg() {
   const answerBox = el("section", "answer-box");
   answerBox.hidden = true;
   const ahead = el("header", "answer-head");
-  ahead.append(el("span", "answer-label", "CIQ read-out"), el("span", "answer-sub", "Interpretation of the analyses above, written by the model"));
+  ahead.append(el("span", "answer-label", "LoTrace read-out"), el("span", "answer-sub", "Interpretation of the analyses above, written by the model"));
   const answer = el("div", "answer streaming");
   answerBox.append(ahead, answer);
   const actions = el("div", "msg-actions");
@@ -1302,7 +1314,7 @@ function renderCompare(initial) {
   const head = el("header", "card-head");
   const title = el("div", "card-title", "Brand comparison");
   const tag = el("span", "card-tool", "side by side");
-  const interpret = el("button", "card-act primary", "Ask CIQ to interpret");
+  const interpret = el("button", "card-act primary", "Ask LoTrace to interpret");
   interpret.type = "button";
   interpret.hidden = true;
   interpret.addEventListener("click", () => {
@@ -1620,7 +1632,7 @@ function withdrawCard(card, reason) {
   icon.innerHTML = svgIcon("M9 14L4 9l5-5M4 9h11a5 5 0 0 1 0 10h-4");
   const text = el("span", "wd-text");
   const title = card.querySelector(".card-title")?.textContent || "This result";
-  text.append(el("b", null, "Withdrawn by CIQ"), el("span", null, ` · ${title}. ${reason}`));
+  text.append(el("b", null, "Withdrawn by LoTrace"), el("span", null, ` · ${title}. ${reason}`));
   const toggle = el("button", "wd-toggle", "Show anyway");
   toggle.type = "button";
   toggle.addEventListener("click", () => {
@@ -2231,7 +2243,7 @@ function renderDiagnostic(res) {
   ask.appendChild(document.createTextNode("Why are they different?"));
   ask.addEventListener("click", () => submit(`Why are ${A} and ${B} different? Explain what drives the gap in this comparison ` +
     `(what, where, the likely drivers) and what the ${c.product || A} team could do about it.`));
-  why.append(ask, el("span", "dg-why-hint", "CIQ digs into the drivers above and explains the gap."));
+  why.append(ask, el("span", "dg-why-hint", "LoTrace digs into the drivers above and explains the gap."));
   if (c.kind === "hcp" && B !== "All HCPs") {
     const bench = el("button", "cm-btn", `Compare ${A} vs all HCPs`);
     bench.type = "button";
@@ -2292,25 +2304,25 @@ const SOURCE_KINDS = [
   { id: "crm", name: "Promotional / CRM", desc: "Rep calls, samples, speaker programs, HCP engagement", join: "HCP (NPI)" },
   { id: "specialty", name: "Specialty pharmacy & hub", desc: "Dispense, adherence and patient-support program data", join: "Patient token" },
   { id: "research", name: "Market research", desc: "ATU, chart audits and survey data", join: "HCP (NPI)" },
-  { id: "custom", name: "Custom table", desc: "Any other table you want CIQ to use", join: "" },
+  { id: "custom", name: "Custom table", desc: "Any other table you want LoTrace to use", join: "" },
 ];
 const PLATFORMS = [
   { id: "snowflake", logo: "snowflake.svg", name: "Snowflake", sub: "Data Cloud", auth: ["Key pair", "OAuth", "PrivateLink"],
     fields: [["Account URL", "xy12345.us-east-1.snowflakecomputing.com"], ["Warehouse", "ANALYTICS_WH"], ["Database", "COMMERCIAL"],
-      ["Schema", "PAYER"], ["Table", "FORMULARY_STATUS"], ["Role", "CIQ_READER"]] },
+      ["Schema", "PAYER"], ["Table", "FORMULARY_STATUS"], ["Role", "LOTRACE_READER"]] },
   { id: "databricks", logo: "databricks.svg", name: "Databricks", sub: "Unity Catalog · SQL warehouse", auth: ["Service principal", "OAuth"],
     fields: [["Workspace URL", "https://adb-123.azuredatabricks.net"], ["HTTP path", "/sql/1.0/warehouses/abc123"], ["Catalog", "commercial"],
       ["Schema", "crm"], ["Table", "calls"]] },
   { id: "aws", logo: "aws.svg", wide: true, name: "Amazon Web Services", sub: "Redshift · S3 · Athena", auth: ["IAM role", "PrivateLink"],
     fields: [["Service", "Redshift, S3 or Athena"], ["Region", "us-east-1"], ["Endpoint or bucket", "s3://commercial-data/payer/"],
-      ["Database or prefix", "payer"], ["Table or file pattern", "formulary_*.parquet"], ["IAM role ARN", "arn:aws:iam::123456789012:role/ciq-reader"]] },
+      ["Database or prefix", "payer"], ["Table or file pattern", "formulary_*.parquet"], ["IAM role ARN", "arn:aws:iam::123456789012:role/lotrace-reader"]] },
   { id: "azure", logo: "azure.svg", name: "Microsoft Azure", sub: "Synapse · Data Lake · SQL", auth: ["Entra ID", "Managed identity", "Private Link"],
     fields: [["Service", "Synapse, Data Lake or Azure SQL"], ["Server or account", "commercial.sql.azuresynapse.net"],
       ["Database or container", "commercial"], ["Schema or path", "crm"], ["Table", "rep_calls"]] },
   { id: "bigquery", logo: "bigquery.svg", name: "Google BigQuery", sub: "Google Cloud", auth: ["Service account", "Workload identity"],
     fields: [["Project", "commercial-analytics"], ["Dataset", "payer"], ["Table", "formulary_status"]] },
   { id: "upload", icon: "M12 16V4M7 9l5-5 5 5M4 20h16", name: "Upload a file", sub: "CSV · Parquet · Excel", auth: ["Up to 1 GB"],
-    fields: [["File", ""], ["Table name in CIQ", "payer_formulary"]] },
+    fields: [["File", ""], ["Table name in LoTrace", "payer_formulary"]] },
 ];
 const JOIN_KEYS = ["HCP (NPI)", "Payer plan id", "Patient token", "Product (NDC / HCPCS)", "None (reference table)"];
 
